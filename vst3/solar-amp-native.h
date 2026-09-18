@@ -1,6 +1,9 @@
 #pragma once
 
 #include "IPlugConstants.h"
+#ifndef DEFAULT_BLOCK_SIZE
+#define DEFAULT_BLOCK_SIZE 1024
+#endif
 #include "../AudioDSPTools/dsp/ImpulseResponse.h"
 #include "../AudioDSPTools/dsp/NoiseGate.h"
 #include "../AudioDSPTools/dsp/dsp.h"
