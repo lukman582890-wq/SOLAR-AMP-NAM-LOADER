@@ -1,5 +1,6 @@
 #pragma once
 
+#include "IPlugConstants.h"
 #include "../AudioDSPTools/dsp/ImpulseResponse.h"
 #include "../AudioDSPTools/dsp/NoiseGate.h"
 #include "../AudioDSPTools/dsp/dsp.h"
@@ -10,7 +11,6 @@
 
 #include "ToneStack.h"
 
-#include "IPlugConstants.h"
 #include "IPlug_include_in_plug_hdr.h"
 
 
