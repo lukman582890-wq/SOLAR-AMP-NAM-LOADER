@@ -1,4 +1,4 @@
-let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,raf,installEvent;let namNode=null,namReady=false,namModelLoaded=false,namMode=false,namSourceActive=false,namPending=false,namModelJson='';const moduleBypass={amp:false,od:false,eq:false,cab:false,fx:false};let eqGraph={low:0,mid:0,high:0};
+let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,raf,installEvent;let namNode=null,namReady=false,namModelLoaded=false,namMode=false,namSourceActive=false,namSourceRequested=false,namPending=false,namModelJson='';const moduleBypass={amp:false,od:false,eq:false,cab:false,fx:false};let eqGraph={low:0,mid:0,high:0};
 const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const state={gain:25,bass:100,mid:50,treble:50,presence:50,master:100,drive:35,tone:50,level:72,mic:50,low:50,high:70,delay:28,reverb:22,eqLow:50,eqMid:50,eqHigh:50};
 const presets=[
@@ -22,7 +22,7 @@ function refreshNamBypass(){
 async function initNam(){
  if(!ctx?.audioWorklet)return false;
  try{
-  await ctx.audioWorklet.addModule('./nam-worklet.js?v=54');
+  await ctx.audioWorklet.addModule('./nam-worklet.js?v=55');
   namNode=new AudioWorkletNode(ctx,'solar-nam-processor',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1]});
   return await new Promise(resolve=>{
    let settled=false;
@@ -58,7 +58,7 @@ async function initNam(){
      setText($('engine'),'NAM WASM');
     }
     if(d.type==='processError'){
-     namModelLoaded=false;namSourceActive=false;namPending=false;
+     namModelLoaded=false;namSourceActive=false;namSourceRequested=false;namPending=false;
      setNamAmpMode(false);
      setText($('modelStatus'),'NAM DSP ERROR • '+(d.message||'processing failed'));
      setText($('engine'),'NAM WASM ERROR');
@@ -141,11 +141,17 @@ function toggleAmpSource(){
   setText($('modelStatus'),'Start Audio first');
   return;
  }
+ if(!namModelJson){
+  setText($('modelStatus'),'NO NAM MODEL • choose a .NAM file first');
+  return;
+ }
  if(!namModelLoaded||!namReady){
-  setText($('modelStatus'),'NAM NOT READY • load a valid .NAM model first');
+  namSourceRequested=true;
+  setText($('modelStatus'),'NAM REQUESTED • waiting for NAM WASM/model…');
   refreshStatusIndicators();
   return;
  }
+ namSourceRequested=false;
  if(moduleBypass.amp)moduleBypass.amp=false;
  setNamAmpMode(!namMode);
  refreshAllBypass();
@@ -198,12 +204,13 @@ function refreshStatusIndicators(){
  if(bypassEl)bypassEl.classList.toggle('selected',bypassActive);
  const switchBtn=$('sourceSwitch');
  if(switchBtn){
+  const hasModel=Boolean(namModelJson);
   const loaded=Boolean(namModelLoaded&&namReady);
-  switchBtn.disabled=!loaded;
+  switchBtn.disabled=!hasModel;
   switchBtn.classList.toggle('nam-selected',namActive);
-  switchBtn.textContent=namActive?'SWITCH → AMP':'SWITCH → NAM';
+  switchBtn.textContent=namActive?'SWITCH → AMP':(namSourceRequested&&!loaded?'WAIT NAM…':'SWITCH → NAM');
   switchBtn.setAttribute('aria-label',namActive?'Switch active source to legacy AMP':'Switch active source to NAM');
-  switchBtn.title=loaded?(namActive?'NAM active — switch to legacy AMP':'AMP active — switch to NAM'):'Load a NAM model and start audio first';
+  switchBtn.title=!hasModel?'Choose a .NAM model first':(namActive?'NAM active — switch to legacy AMP':loaded?'AMP active — switch to NAM':'NAM will activate when the loader finishes');
  }
  const chainMap={od:'odModule',amp:'ampModule',cab:'cabModule',eq:'eqModule',fx:'fxModule'};
  Object.entries(chainMap).forEach(([name,id])=>{
@@ -316,7 +323,7 @@ async function start(){
  }
 }
 function stop(){
- cancelAnimationFrame(raf);stream?.getTracks().forEach(t=>t.stop());stream=null;ctx?.close();ctx=null;running=false;namNode=null;namReady=false;namModelLoaded=false;namMode=false;namSourceActive=false;namPending=Boolean(namModelJson);
+ cancelAnimationFrame(raf);stream?.getTracks().forEach(t=>t.stop());stream=null;ctx?.close();ctx=null;running=false;namNode=null;namReady=false;namModelLoaded=false;namMode=false;namSourceActive=false;namSourceRequested=false;namPending=Boolean(namModelJson);
  $('stopAudio')?.setAttribute('hidden','');$('start').classList.remove('on');$('start').classList.remove('bypassed');$('start').textContent='🖕';$('start').setAttribute('aria-pressed','false');setText($('engine'),'WEB AUDIO');refreshStatusIndicators();setText($('rate'),'—');setText($('latency'),'—');$('in').value=0;$('out').value=0;setText($('note'),'—');setText($('hz'),'—');setText($('cents'),'PLAY A NOTE');
 }
 function tick(){
@@ -494,7 +501,7 @@ document.querySelectorAll('.module-bypass[data-module]:not(#start)').forEach(ico
   $('sourceSwitch')?.addEventListener('click',toggleAmpSource);
  $('nam').addEventListener('change',async e=>{
   const f=e.target.files?.[0];if(!f)return;setText($('fileName'),f.name);
-  try{const raw=JSON.parse(await f.text());const a=String(raw.architecture??raw.model?.architecture??raw.config?.architecture??'').toUpperCase();const isA2=a.includes('A2')||String(raw?.config?.version??'').toUpperCase().includes('A2');const isA1=a.includes('A1')||String(raw?.config?.version??'').toUpperCase().includes('A1');const kind=isA2?'NAM A2':isA1?'NAM A1':a.includes('WAVENET')?'NAM WaveNet':a.includes('LSTM')?'NAM LSTM':raw?.weights?'NAM model':'NAM architecture unknown';namModelJson=JSON.stringify(raw);namPending=true;namSourceActive=false;refreshStatusIndicators();setText($('modelStatus'),f.name+' • '+kind+' • '+(namReady?'loading real NAM WASM…':'model queued — Start Audio'));if(namReady)loadNamModel(namModelJson)}
+  try{const raw=JSON.parse(await f.text());const a=String(raw.architecture??raw.model?.architecture??raw.config?.architecture??'').toUpperCase();const isA2=a.includes('A2')||String(raw?.config?.version??'').toUpperCase().includes('A2');const isA1=a.includes('A1')||String(raw?.config?.version??'').toUpperCase().includes('A1');const kind=isA2?'NAM A2':isA1?'NAM A1':a.includes('WAVENET')?'NAM WaveNet':a.includes('LSTM')?'NAM LSTM':raw?.weights?'NAM model':'NAM architecture unknown';namModelJson=JSON.stringify(raw);namPending=true;namSourceActive=false;namSourceRequested=false;refreshStatusIndicators();setText($('modelStatus'),f.name+' • '+kind+' • '+(namReady?'loading real NAM WASM…':'model queued — Start Audio'));if(namReady)loadNamModel(namModelJson)}
   catch{namModelJson='';namPending=false;namSourceActive=false;refreshStatusIndicators();setText($('modelStatus'),'Invalid/unsupported NAM JSON')}
  });
  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvent=e;$('install').hidden=false});
