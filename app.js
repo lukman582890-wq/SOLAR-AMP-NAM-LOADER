@@ -27,7 +27,7 @@ async function initNam(){
   namNode.port.onmessage=e=>{
    const d=e.data||{};
    if(d.type==='ready'){namReady=true;setText($('modelStatus'),'NAM WASM READY • '+d.sampleRate+' Hz');if(namModelJson)loadNamModel(namModelJson)}
-   if(d.type==='modelLoaded'){namModelLoaded=Boolean(d.success&&d.hasModel);setNamAmpMode(namModelLoaded);setNamAmpMode(namModelLoaded);setText($('modelStatus'),namModelLoaded?'NAM LOADED • AMP/NAM switch ready • waiting for DSP':'NAM MODEL LOAD FAILED');}
+   if(d.type==='modelLoaded'){namModelLoaded=Boolean(d.success&&d.hasModel);setNamAmpMode(namModelLoaded);setText($('modelStatus'),namModelLoaded?'NAM LOADED • AMP/NAM switch ready • waiting for DSP':'NAM MODEL LOAD FAILED');}
    if(d.type==='processing'&&namModelLoaded){setText($('modelStatus'),'NAM ACTIVE • real WASM inference • '+d.blocks+' blocks');setText($('engine'),'NAM WASM')}
    if(d.type==='processError'){namModelLoaded=false;setNamAmpMode(false);setText($('modelStatus'),'NAM DSP ERROR • '+(d.message||'processing failed'));setText($('engine'),'NAM WASM ERROR');refreshDrive();refreshNamBypass()}
    if(d.type==='error'||d.type==='modelError'){namReady=false;namModelLoaded=false;setNamAmpMode(false);setText($('modelStatus'),'NAM WASM ERROR • '+(d.message||'unknown error'));refreshDrive();refreshNamBypass()}
@@ -274,13 +274,8 @@ function loadSavedPreset(p){
 }
 function manageSavedPresets(){
  if(!savedPresets.length){alert('Belum ada preset tersimpan.');return}
- const list=savedPresets.map((p,i)=>(i+1)+'. '+p.name).join('
-');
- const choice=prompt('SAVED PRESETS
-
-'+list+'
-
-Ketik nomor untuk LOAD, atau D1/D2... untuk DELETE:');
+ const list=savedPresets.map((p,i)=>(i+1)+'. '+p.name).join('\\n');
+ const choice=prompt('SAVED PRESETS\\n\\n'+list+'\\n\\nKetik nomor untuk LOAD, atau D1/D2... untuk DELETE:');
  if(!choice)return;
  const m=choice.trim().toUpperCase().match(/^([LD])(\\d+)$/);
  const n=m?Number(m[2]):Number(choice);
