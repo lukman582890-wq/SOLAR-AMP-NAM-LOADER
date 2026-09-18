@@ -105,6 +105,10 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   const size_t numFrames = (size_t)nFrames;
   const double sampleRate = GetSampleRate();
 
+  // Commit staged NAM/IR objects before selecting the active source. This
+  // removes the one-block "NAM loaded but AMP still active" race.
+  _ApplyDSPStaging();
+
   // Disable floating point denormals
   std::fenv_t fe_state;
   std::feholdexcept(&fe_state);
@@ -116,7 +120,7 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
 
   // OD / drive stage. This is intentionally simple and allocation-free on the
   // audio thread; the NAM remains the main amp-modeling stage.
-  if (GetParam(kODActive)->Bool())
+  if (mODActive.load())
   {
     const double drive = GetParam(kODDrive)->Value() / 100.0;
     const double tone = GetParam(kODTone)->Value() / 100.0;
@@ -138,12 +142,7 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
 
   const bool nativeAmpBypass = mNativeAmpBypass.load();
   const bool namActive = mNamActive.load() && mModel != nullptr;
-  // Staging must continue even while AMP is bypassed so CAB/IR/model changes do
-  // not get stuck waiting for the next un-bypass.
-  _ApplyDSPStaging();
   const bool noiseGateActive = GetParam(kNoiseGateActive)->Value();
-  const bool toneStackActive = GetParam(kEQActive)->Value();
-
   // Noise gate trigger
   sample** triggerOutput = mInputPointers;
   if (noiseGateActive)
@@ -202,13 +201,12 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   sample** gateGainOutput =
     noiseGateActive ? mNoiseGateGain.Process(mOutputPointers, numChannelsInternal, numFrames) : mOutputPointers;
 
-  sample** toneStackOutPointers = (toneStackActive && mToneStack != nullptr)
-                                    ? mToneStack->Process(gateGainOutput, numChannelsInternal, nFrames)
-                                    : gateGainOutput;
-
-  sample** irPointers = toneStackOutPointers;
-  if (mIR != nullptr && GetParam(kIRToggle)->Value())
-    irPointers = mIR->Process(toneStackOutPointers, numChannelsInternal, numFrames);
+  // The old NAM tone stack is intentionally NOT inserted here. In SOLAR AMP,
+  // the EQ module below is the only post-amp tone stage. This keeps a loaded
+  // NAM model isolated from the legacy AMP controls.
+  sample** irPointers = gateGainOutput;
+  if (mIR != nullptr && mCabActive.load())
+    irPointers = mIR->Process(gateGainOutput, numChannelsInternal, numFrames);
 
   // And the HPF for DC offset (Issue 271)
   const double highPassCutoffFreq = kDCBlockerFrequency;
@@ -220,7 +218,7 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   sample** hpfPointers = mHighPass.Process(irPointers, numChannelsInternal, numFrames);
 
   // Native 3-band EQ.
-  if (GetParam(kEQActive)->Bool())
+  if (mEQActive.load())
   {
     const double sr = sampleRate;
     const double lowAlpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * 180.0 / sr);
@@ -242,9 +240,9 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
 
   // Native delay / reverb / modulation FX. Every mode has a real,
   // allocation-free DSP path and all paths are bypassable from the UI.
-  if (GetParam(kFXActive)->Bool() && !mDelayBuffer.empty())
+  if (mFXActive.load() && !mDelayBuffer.empty())
   {
-    const int mode = GetParam(kFXMode)->Int();
+    const int mode = mFXModeNative.load();
     const double wetDelay = GetParam(kFXDelay)->Value() / 100.0;
     const double wetReverb = GetParam(kFXReverb)->Value() / 100.0;
     const double sr = sampleRate;
@@ -491,6 +489,29 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
     case 103:
       // Source selector: 1 = NAM, 0 = native legacy AMP.
       mNamActive = dataSize > 0 && pData && (*reinterpret_cast<const uint8_t*>(pData) != 0);
+      return true;
+
+    case 110:
+      // Direct native module bypass bus. ctrlTag: 0=OD,1=AMP,2=EQ,3=CAB,4=FX.
+      // The normal SPVFUI parameter path remains active for host automation.
+      {
+        const bool active = dataSize > 0 && pData && (*reinterpret_cast<const uint8_t*>(pData) != 0);
+        switch (ctrlTag)
+        {
+          case 0: mODActive = active; break;
+          case 1: mNativeAmpBypass = !active; break;
+          case 2: mEQActive = active; break;
+          case 3: mCabActive = active; break;
+          case 4: mFXActive = active; break;
+          default: return false;
+        }
+      }
+      return true;
+
+    case 111:
+      // Direct FX mode bus: 0=delay, 1=reverb, 2=chorus, 3=phaser, 4=tremolo.
+      if (!pData || dataSize < 1) return false;
+      mFXModeNative = std::clamp<int>(*reinterpret_cast<const uint8_t*>(pData), 0, 4);
       return true;
 
     case 104:
