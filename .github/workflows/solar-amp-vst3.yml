@@ -122,8 +122,13 @@ jobs:
           New-Item -ItemType Directory -Force $legacyResources | Out-Null
           Copy-Item 'nam-vst3-source\NeuralAmpModeler\Resources\web\*' $resources -Recurse -Force
           Copy-Item 'nam-vst3-source\NeuralAmpModeler\Resources\web\*' $legacyResources -Recurse -Force
+          # Bundle the IR pack beside index.html because the WebView uses ./ir/*.wav.
+          $irDest = Join-Path $resources 'ir'
+          New-Item -ItemType Directory -Force $irDest | Out-Null
+          Copy-Item 'ir\*.wav' $irDest -Force
           Write-Host "VST3 binary: $($bin.FullName)"
           Write-Host "Web UI: $resources"
+          Write-Host "IR pack: $irDest"
           Write-Host "Legacy Web UI fallback: $legacyResources"
 
       - name: Validate
@@ -143,6 +148,8 @@ jobs:
           if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\web\index.html'))) { throw 'WebView index.html missing.' }
           if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\web\solar-amp-web.js'))) { throw 'SOLAR AMP WebView JS missing.' }
           if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\SOLAR AMP\web\index.html'))) { throw 'Legacy WebView fallback index.html missing.' }
+          $irCount = @(Get-ChildItem (Join-Path $bundle 'Contents\Resources\web\ir') -Filter '*.wav' -File).Count
+          if ($irCount -lt 20) { throw "IR pack incomplete: found $irCount WAV files, expected at least 20." }
           $old = Get-ChildItem $bundle -Recurse -File -Filter 'NeuralAmpModeler.vst3'
           if ($old) { throw 'Old NeuralAmpModeler.vst3 binary still exists in SOLAR AMP bundle.' }
           Write-Host 'SOLAR AMP WebView bundle identity/resources verified.'
