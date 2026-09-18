@@ -320,7 +320,7 @@ async function applyCabModel(name){
   }
  }
  if(ctx)refreshCab();
-}(){
+function renderIRLibrary(){
  const box=$('irLibrary');if(!box)return;box.innerHTML='';
  irFiles.forEach((v,name)=>{
   const b=document.createElement('button');b.type='button';b.className='ir-item';b.textContent=name;b.title=name;
