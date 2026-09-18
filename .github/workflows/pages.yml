@@ -20,15 +20,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate JavaScript
         run: node --check app.js
-      - name: Prepare local NAM WASM runtime
+      - name: Prepare local NAM Web runtime
         run: |
-          rm -rf /tmp/solar-nam vendor/nam-wasm
-          npm install --prefix /tmp/solar-nam --no-save @opendaw/nam-wasm@1.2.0
-          mkdir -p vendor/nam-wasm
-          cp -R /tmp/solar-nam/node_modules/@opendaw/nam-wasm/dist/. vendor/nam-wasm/
-          test -f vendor/nam-wasm/index.js
-          test -f vendor/nam-wasm/nam.js
-          test -f vendor/nam-wasm/nam.wasm
+          rm -rf /tmp/solar-nam-web vendor/nam-web
+          npm install --prefix /tmp/solar-nam-web --no-save @happysoftware/nam-web@0.2.0
+          mkdir -p vendor/nam-web
+          cp -R /tmp/solar-nam-web/node_modules/@happysoftware/nam-web/dist/. vendor/nam-web/
+          test -f vendor/nam-web/worklet.js
+          test -f vendor/nam-web/nam-wasm.wasm
+          test -f vendor/nam-web/index.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
