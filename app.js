@@ -208,7 +208,7 @@ async function start(){
   nodes.phaserLfo=ctx.createOscillator();nodes.phaserLfoGain=ctx.createGain();nodes.phaserLfo.frequency.value=.32;nodes.phaserLfoGain.gain.value=650;nodes.phaserLfo.connect(nodes.phaserLfoGain).connect(nodes.phaser1.frequency);nodes.phaserLfo.connect(nodes.phaserLfoGain).connect(nodes.phaser2.frequency);nodes.phaserLfo.start();
   const dry=ctx.createGain();dry.gain.value=1;master=ctx.createGain();
   await initNam();
-  s.connect(inputAnalyser);s.connect(gate).connect(nodes.odDrive).connect(nodes.odTone).connect(nodes.odLevel).connect(nodes.ampDrive);if(namNode)nodes.ampDrive.connect(namNode).connect(nodes.ampTone);else nodes.ampDrive.connect(nodes.ampTone).connect(nodes.bass).connect(nodes.mid).connect(nodes.treble).connect(nodes.presence).connect(nodes.low).connect(nodes.high).connect(nodes.cab).connect(nodes.cabPresence);
+  s.connect(inputAnalyser);s.connect(gate).connect(nodes.odDrive).connect(nodes.odTone).connect(nodes.odLevel).connect(nodes.ampDrive);if(namNode)nodes.ampDrive.connect(namNode).connect(nodes.ampTone);else nodes.ampDrive.connect(nodes.ampTone);nodes.ampTone.connect(nodes.bass).connect(nodes.mid).connect(nodes.treble).connect(nodes.presence).connect(nodes.low).connect(nodes.high).connect(nodes.cab).connect(nodes.cabPresence);
   nodes.cabPresence.connect(nodes.ir).connect(nodes.eqLow).connect(nodes.eqMid).connect(nodes.eqHigh);
   nodes.eqHigh.connect(dry).connect(master);
   nodes.eqHigh.connect(delay).connect(nodes.dw).connect(master);
