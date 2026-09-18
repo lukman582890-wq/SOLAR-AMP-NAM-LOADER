@@ -76,7 +76,7 @@ jobs:
 
           if ((Select-String -Path $config -Pattern '#define PLUG_UNIQUE_ID ''1YEo''').Count -gt 0) { throw 'Old NAM unique ID still present.' }
           if ((Select-String -Path $config -Pattern '#define PLUG_NAME "SOLAR AMP"').Count -eq 0) { throw 'SOLAR AMP plugin name patch failed.' }
-          if ((Select-String -Path $props -Pattern 'WEBVIEW_EDITOR_DELEGATE;NO_IGRAPHICS').Count -eq 0) { throw 'WebView build definitions missing.' }
+          if ((Select-String -Path $props -Pattern 'WEBVIEW_EDITOR_DELEGATE;IGRAPHICS_NANOVG;IGRAPHICS_GL2').Count -eq 0) { throw 'WebView build definitions missing.' }
           Write-Host 'SOLAR AMP identity and WebView build configuration prepared.'
 
       - name: Prepare SOLAR AMP WebView source and UI
