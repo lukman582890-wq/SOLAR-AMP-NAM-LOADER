@@ -504,7 +504,17 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
         if (name.find("..") != std::string::npos || name.find('/') != std::string::npos || name.find('\\') != std::string::npos)
           throw std::runtime_error("Invalid IR name.");
         WDL_String resources;
-        BundleResourcePath(resources, GetBundleID());
+#ifdef OS_WIN
+        HMODULE pluginModule = nullptr;
+        if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                  GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                reinterpret_cast<LPCWSTR>(&NeuralAmpModuleAnchor),
+                                &pluginModule))
+          throw std::runtime_error("Cannot resolve SOLAR AMP module path.");
+        BundleResourcePath(resources, pluginModule);
+#else
+        BundleResourcePath(resources);
+#endif
         resources.Append("web/ir/");
         resources.Append(name.c_str());
         resources.Append(".wav");
