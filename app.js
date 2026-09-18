@@ -1,4 +1,4 @@
-let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,raf,installEvent;
+let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,raf,installEvent;const moduleBypass={od:false,eq:false,cab:false,fx:false};
 const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const state={gain:25,bass:100,mid:50,treble:50,presence:50,master:100,drive:35,tone:50,level:72,mic:50,low:50,high:70,delay:28,reverb:22};
 const presets=[
@@ -23,16 +23,37 @@ function refreshFx(){
 }
 function refreshDrive(){
  if(!ctx)return;
- if(nodes.ampDrive)nodes.ampDrive.curve=curve(Math.max(.03,ampBaseDrive*(.35+state.gain/100*1.45)));
- if(nodes.odDrive)nodes.odDrive.curve=curve(Math.max(.01,odBaseDrive*(.25+state.drive/100*1.5)));
+ if(nodes.ampDrive)nodes.ampDrive.curve=moduleBypass.amp?null:curve(Math.max(.03,ampBaseDrive*(.35+state.gain/100*1.45)));
+ if(nodes.odDrive)nodes.odDrive.curve=moduleBypass.od?null:curve(Math.max(.01,odBaseDrive*(.25+state.drive/100*1.5)));
+}
+function refreshEq(){
+ if(!ctx)return;
+ const q=moduleBypass.eq?0:1;
+ if(nodes.bass)nodes.bass.gain.value=(state.bass-50)*.24*q;
+ if(nodes.mid)nodes.mid.gain.value=(state.mid-50)*.24*q;
+ if(nodes.treble)nodes.treble.gain.value=(state.treble-50)*.24*q;
+ if(nodes.presence)nodes.presence.gain.value=(state.presence-50)*.22*q;
+ if(nodes.low)nodes.low.frequency.value=moduleBypass.eq?20:40+state.low*1.2;
+ if(nodes.high)nodes.high.frequency.value=moduleBypass.eq?20000:4000+state.high*60;
+}
+function refreshCab(){
+ if(!ctx)return;
+ const cut=moduleBypass.cab?20000:({ '4x12 V30':7200,'2x12 Blue':6500,'4x10 Green':8000}[selectedCab]||7200);
+ if(nodes.cab)nodes.cab.frequency.value=cut;
+ if(nodes.cabPresence)nodes.cabPresence.gain.value=moduleBypass.cab?0:({ '4x12 V30':2.2,'2x12 Blue':1.2,'4x10 Green':-1.5}[selectedCab]||2.2);
+}
+function refreshAllBypass(){refreshDrive();refreshEq();refreshCab();refreshFx()}
+function toggleModule(name){
+ if(!(name in moduleBypass))return;
+ moduleBypass[name]=!moduleBypass[name];
+ const icon=document.querySelector('.module-bypass[data-module="'+name+'"]');
+ if(icon){icon.textContent=moduleBypass[name]?'👍':'🖕';icon.classList.toggle('bypassed',moduleBypass[name]);icon.setAttribute('aria-pressed',String(!moduleBypass[name]));}
+ refreshAllBypass();
 }
 function apply(k,v){
  if(!ctx)return;
  if(k==='gain'||k==='drive')refreshDrive();
- if(k==='bass'&&nodes.bass)nodes.bass.gain.value=(v-50)*.24;
- if(k==='mid'&&nodes.mid)nodes.mid.gain.value=(v-50)*.24;
- if(k==='treble'&&nodes.treble)nodes.treble.gain.value=(v-50)*.24;
- if(k==='presence'&&nodes.presence)nodes.presence.gain.value=(v-50)*.22;
+ if(k==='bass'||k==='mid'||k==='treble'||k==='presence'||k==='low'||k==='high')refreshEq();
  if(k==='master'&&master)master.gain.value=v/100;
  if(k==='tone'&&nodes.tone)nodes.tone.frequency.value=1800+v*110;
  if(k==='level'&&nodes.driveLevel)nodes.driveLevel.gain.value=v/100;
@@ -104,7 +125,7 @@ async function start(){
   nodes.cabPresence.connect(nodes.tremolo).connect(master);
   nodes.cabPresence.connect(nodes.phaser1).connect(nodes.phaser2).connect(nodes.phaserGain).connect(master);
   master.connect(outputAnalyser).connect(ctx.destination);
-  Object.entries(state).forEach(([k,v])=>apply(k,v));applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);applyCabModel(selectedCab);applyFxModel(selectedFx);applyFxMode(selectedFxMode);
+  Object.entries(state).forEach(([k,v])=>apply(k,v));applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);applyCabModel(selectedCab);applyFxModel(selectedFx);applyFxMode(selectedFxMode);refreshAllBypass();
   running=true;setText($('engine'),'WEB AUDIO');setText($('rate'),ctx.sampleRate+' Hz');setText($('latency'),((ctx.baseLatency||0)*1000).toFixed(1)+' ms');$('start').classList.add('on');$('start').textContent='👍';tick();
  }catch(err){
   setText($('engine'),'AUDIO ERROR');setText($('latency'),err?.name||'Permission denied');
@@ -144,6 +165,8 @@ function loadSavedPreset(p){
  Object.assign(state,p.state||{});
  setAmp?.(p.amp||'British 800');setOd?.(p.od||'Tube Screamer');setEq?.(p.eq||'Default');setCab?.(p.cab||'4x12 V30');setFx?.(p.fx||'Hall Reverb');
  setText($('presetName'),'★  '+p.name);
+ Object.entries(moduleBypass).forEach(k=>moduleBypass[k]=Boolean(p.bypass?.[k]));
+ document.querySelectorAll('.module-bypass[data-module]').forEach(icon=>{const n=icon.dataset.module;icon.textContent=moduleBypass[n]?'👍':'🖕';icon.classList.toggle('bypassed',moduleBypass[n]);icon.setAttribute('aria-pressed',String(!moduleBypass[n]))});
  Object.entries(state).forEach(([k,v])=>knobSetters[k]?.(v));
  applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);applyCabModel(selectedCab);applyFxModel(selectedFx);applyFxMode(selectedFxMode);
 }
@@ -181,7 +204,7 @@ function applyEqModel(name){
   'Mid Focus':{bass:-2,mid:5,treble:-1,d:'M0 62 C55 60 95 48 150 30 C205 48 245 59 300 58'}
  };
  const p=profiles[name]||profiles.Default;
- if(ctx){if(nodes.bass)nodes.bass.gain.value=p.bass;if(nodes.mid)nodes.mid.gain.value=p.mid;if(nodes.treble)nodes.treble.gain.value=p.treble}
+ if(ctx)refreshEq();
  const path=$('eqCurve');if(path)path.setAttribute('d',p.d);
 }
 function applyOdModel(name){
@@ -191,7 +214,7 @@ function applyOdModel(name){
 function applyCabModel(name){
  selectedCab=name;const profiles={'4x12 V30':{cut:7200,pres:2.2},'2x12 Blue':{cut:6500,pres:1.2},'4x10 Green':{cut:8000,pres:-1.5}};
  const p=profiles[name]||profiles['4x12 V30'];
- if(ctx){if(nodes.cab)nodes.cab.frequency.value=p.cut;if(nodes.cabPresence)nodes.cabPresence.gain.value=p.pres}
+ if(ctx)refreshCab();
 }
 function applyFxModel(name){
  selectedFx=name;const profiles={'Hall Reverb':{delay:.42,rev:.30},'Plate Reverb':{delay:.18,rev:.38},'Room Reverb':{delay:.10,rev:.20},'Studio Hall':{delay:.32,rev:.34}};
@@ -214,6 +237,7 @@ $('presetMenu')?.addEventListener('click',manageSavedPresets);
  setCab=wireModelSelector('#cabSelect',['4x12 V30','2x12 Blue','4x10 Green'],applyCabModel);
  setFx=wireModelSelector('#fxSelect',['Hall Reverb','Plate Reverb','Room Reverb','Studio Hall'],applyFxModel);
  document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>applyFxMode(b.textContent.trim())));
+document.querySelectorAll('.module-bypass[data-module]').forEach(icon=>icon.addEventListener('click',()=>toggleModule(icon.dataset.module)));
  $('nam').addEventListener('change',async e=>{
   const f=e.target.files?.[0];if(!f)return;setText($('fileName'),f.name);
   try{const raw=JSON.parse(await f.text());const a=String(raw.architecture??raw.model?.architecture??'').toUpperCase();setText($('modelStatus'),f.name+' • '+(a.includes('A2')?'NAM A2':a.includes('A1')?'NAM A1':'NAM architecture unknown')+' • parsed')}
