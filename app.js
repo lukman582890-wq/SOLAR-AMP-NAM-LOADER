@@ -26,7 +26,7 @@ function apply(k,v){
  if(k==='reverb'&&nodes.rw)nodes.rw.gain.value=v/100;
 }
 function makeKnobs(id,names){
- const root=$(id);root.innerHTML='';
+ const root=$(id);if(!root)return;root.innerHTML='';
  names.forEach(name=>{
   const key=name.toLowerCase().replace(' ','');
   const d=document.createElement('div');d.className='knob';
@@ -115,7 +115,7 @@ function wireModelSelector(selector,values){
 }
 function wireUI(){
  $('start').addEventListener('click',()=>running?stop():start());
- $('presetPrev').addEventListener('click',()=>cyclePreset(-1));$('presetNext').addEventListener('click',()=>cyclePreset(1));
+ $('presetPrev')?.addEventListener('click',()=>cyclePreset(-1));$('presetNext')?.addEventListener('click',()=>cyclePreset(1));
  document.querySelectorAll('.chain-node[data-target]').forEach(n=>n.addEventListener('click',()=>$(n.dataset.target)?.scrollIntoView({behavior:'smooth',block:'center'})));
  document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.fx-modes button').forEach(x=>x.classList.remove('selected'));b.classList.add('selected')}));
  wireModelSelector('#ampSelect',['British 800','American Clean','Modern 5150']);
