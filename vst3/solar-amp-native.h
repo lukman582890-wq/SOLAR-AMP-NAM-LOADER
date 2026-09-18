@@ -298,8 +298,6 @@ private:
   void _SetInputGain();
   void _SetOutputGain();
   void _ApplySlimParamToLoadedNAMs();
-  void _PrepareNativeFX(double sampleRate);
-  void _ProcessNativeModules(iplug::sample** input, iplug::sample** output, size_t nFrames);
 
   // See: Unserialization.cpp
   void _UnserializeApplyConfig(nlohmann::json& config);
@@ -369,17 +367,5 @@ private:
 
   NAMSender mInputSender, mOutputSender;
 
-  std::vector<iplug::sample> mDelayBuffer;
-  std::vector<iplug::sample> mReverbA;
-  std::vector<iplug::sample> mReverbB;
-  size_t mDelayWrite = 0;
-  size_t mReverbWriteA = 0;
-  size_t mReverbWriteB = 0;
-  double mNativeSampleRate = 48000.0;
-  double mFxState = 0.0;
-  double mFxState2 = 0.0;
-  double mEqLowState = 0.0;
-  double mEqMidState = 0.0;
-  double mEqHighState = 0.0;
 
 };
