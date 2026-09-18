@@ -231,6 +231,13 @@ public:
   std::atomic<bool> mNativeAmpBypass{false};
   // false = legacy SOLAR AMP stage, true = loaded NAM stage.
   std::atomic<bool> mNamActive{false};
+  // Native module bypass state. These are driven by the WebView message bus so
+  // module bypass never depends on controller/processor parameter timing.
+  std::atomic<bool> mODActive{true};
+  std::atomic<bool> mEQActive{true};
+  std::atomic<bool> mCabActive{true};
+  std::atomic<bool> mFXActive{true};
+  std::atomic<int> mFXModeNative{0};
   std::vector<float> mDelayBuffer;
   std::vector<float> mReverbBuffer;
   size_t mDelayWritePos = 0;
