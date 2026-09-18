@@ -2,6 +2,10 @@ name: Build NAM VST3 Test
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'vst3/**'
+      - '.github/workflows/vst3-nam-test.yml'
 
 permissions:
   contents: read
