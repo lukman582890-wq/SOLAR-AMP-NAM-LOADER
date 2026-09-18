@@ -8,7 +8,6 @@
 #include "../NeuralAmpModelerCore/NAM/dsp.h"
 #include "../NeuralAmpModelerCore/NAM/slimmable.h"
 
-#include "Colors.h"
 #include "ToneStack.h"
 
 #include "IPlug_include_in_plug_hdr.h"
@@ -319,7 +318,7 @@ private:
   // Path to IR (.wav file)
   WDL_String mIRPath;
 
-  WDL_String mHighLightColor{PluginColors::NAM_THEMECOLOR.ToColorCode()};
+  WDL_String mHighLightColor{};
 
   std::unordered_map<std::string, double> mNAMParams = {{"Input", 0.0}, {"Output", 0.0}};
 
