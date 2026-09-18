@@ -17,7 +17,7 @@ if (typeof globalThis.URL === 'undefined') {
   };
 }
 
-import { createNamModule, NamWasmModule } from 'https://cdn.jsdelivr.net/npm/@opendaw/nam-wasm@1.2.0/dist/index.js';
+import { createNamModule, NamWasmModule } from './vendor/nam-wasm/index.js';
 
 class SolarNamProcessor extends AudioWorkletProcessor {
   constructor() {
