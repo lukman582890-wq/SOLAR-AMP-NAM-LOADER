@@ -128,6 +128,16 @@ function applyAmpModel(name){
  if(nodes.treble)nodes.treble.gain.value=p.treble;
  if(nodes.presence)nodes.presence.gain.value=p.presence;
 }
+function applyEqModel(name){
+ const profiles={
+  'Default':{bass:0,mid:0,treble:0,d:'M0 54 C55 51 95 45 150 52 C205 59 245 53 300 48'},
+  'V-Curve':{bass:4,mid:-5,treble:4,d:'M0 42 C55 36 100 45 150 70 C200 45 245 35 300 40'},
+  'Mid Focus':{bass:-2,mid:5,treble:-1,d:'M0 62 C55 60 95 48 150 30 C205 48 245 59 300 58'}
+ };
+ const p=profiles[name]||profiles.Default;
+ if(ctx){if(nodes.bass)nodes.bass.gain.value=p.bass;if(nodes.mid)nodes.mid.gain.value=p.mid;if(nodes.treble)nodes.treble.gain.value=p.treble}
+ const path=$('eqCurve');if(path)path.setAttribute('d',p.d);
+}
 function applyOdModel(name){
  if(!ctx||!nodes.drive)return;
  const profiles={'Tube Screamer':.34,'Tight OD':.48,'Off':.08};
@@ -140,7 +150,7 @@ function wireUI(){
  document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.fx-modes button').forEach(x=>x.classList.remove('selected'));b.classList.add('selected')}));
  wireModelSelector('#ampSelect',['British 800','American Clean','Modern 5150'],applyAmpModel);
  wireModelSelector('#odSelect',['Tube Screamer','Tight OD','Off'],applyOdModel);
- wireModelSelector('#eqSelect',['Default','V-Curve','Mid Focus']);
+ wireModelSelector('#eqSelect',['Default','V-Curve','Mid Focus'],applyEqModel);
  wireModelSelector('#cabSelect',['4x12 V30','2x12 Blue','4x10 Green']);
  wireModelSelector('#fxSelect',['Hall Reverb','Plate Reverb','Room Reverb']);
  $('nam').addEventListener('change',async e=>{
