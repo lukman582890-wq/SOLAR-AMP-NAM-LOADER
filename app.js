@@ -22,12 +22,14 @@ function refreshNamBypass(){
 async function initNam(){
  if(!ctx?.audioWorklet)return false;
  try{
-  await ctx.audioWorklet.addModule('./nam-worklet.js?v=33');
+  await ctx.audioWorklet.addModule('./nam-worklet.js?v=35');
   namNode=new AudioWorkletNode(ctx,'solar-nam-processor',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1]});
   namNode.port.onmessage=e=>{
    const d=e.data||{};
    if(d.type==='ready'){namReady=true;setText($('modelStatus'),'NAM WASM READY • '+d.sampleRate+' Hz');if(namModelJson)loadNamModel(namModelJson)}
-   if(d.type==='modelLoaded'){namModelLoaded=Boolean(d.success);setText($('modelStatus'),d.success?'NAM ACTIVE • real WASM inference':'NAM MODEL LOAD FAILED');refreshDrive();refreshNamBypass()}
+   if(d.type==='modelLoaded'){namModelLoaded=Boolean(d.success&&d.hasModel);setText($('modelStatus'),namModelLoaded?'NAM LOADED • WASM • waiting for DSP':'NAM MODEL LOAD FAILED');refreshDrive();refreshNamBypass()}
+   if(d.type==='processing'&&namModelLoaded){setText($('modelStatus'),'NAM ACTIVE • real WASM inference • '+d.blocks+' blocks');setText($('engine'),'NAM WASM')}
+   if(d.type==='processError'){namModelLoaded=false;setText($('modelStatus'),'NAM DSP ERROR • '+(d.message||'processing failed'));setText($('engine'),'NAM WASM ERROR');refreshDrive();refreshNamBypass()}
    if(d.type==='error'||d.type==='modelError'){namReady=false;namModelLoaded=false;setText($('modelStatus'),'NAM WASM ERROR • '+(d.message||'unknown error'));refreshDrive();refreshNamBypass()}
   };
   return true;
