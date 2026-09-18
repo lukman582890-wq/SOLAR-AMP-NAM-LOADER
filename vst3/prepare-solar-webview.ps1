@@ -29,6 +29,9 @@ $p=$p.Replace('<ProgramDatabaseFile>$(PDB_FILE)</ProgramDatabaseFile>','<Program
 [IO.File]::WriteAllText($props,$p,(New-Object Text.UTF8Encoding($false)))
 
 $x=[IO.File]::ReadAllText($proj)
+# Force the editor/DSP preprocessor contract at project level; this avoids relying on property-sheet evaluation order.
+$x=$x.Replace('<PreprocessorDefinitions>$(VST3_DEFS);$(RELEASE_DEFS);$(EXTRA_RELEASE_DEFS);%(PreprocessorDefinitions)</PreprocessorDefinitions>','<PreprocessorDefinitions>WEBVIEW_EDITOR_DELEGATE;NO_IGRAPHICS;$(VST3_DEFS);$(RELEASE_DEFS);$(EXTRA_RELEASE_DEFS);%(PreprocessorDefinitions)</PreprocessorDefinitions>')
+$x=$x.Replace('<PreprocessorDefinitions>$(VST3_DEFS);$(DEBUG_DEFS);$(EXTRA_DEBUG_DEFS);%(PreprocessorDefinitions)</PreprocessorDefinitions>','<PreprocessorDefinitions>WEBVIEW_EDITOR_DELEGATE;NO_IGRAPHICS;$(VST3_DEFS);$(DEBUG_DEFS);$(EXTRA_DEBUG_DEFS);%(PreprocessorDefinitions)</PreprocessorDefinitions>')
 $x=[regex]::Replace($x, '\s*<ClInclude Include="[^"]*IGraphics[^"]*" ?/>', '')
 $x=[regex]::Replace($x, '\s*<ClCompile Include="[^"]*IGraphics[^"]*" ?/>', '')
 $nl=[Environment]::NewLine
