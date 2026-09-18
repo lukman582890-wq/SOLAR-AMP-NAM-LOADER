@@ -75,3 +75,13 @@ small,span{font:11px monospace;color:var(--muted)}
  .od-module .knobface:after{top:4px;height:18px;transform-origin:2px 23px}
  .od-module .fingerpointer{font-size:19px;height:25px;transform-origin:50% 25px}
 }
+
+
+/* Module bypass logos: one icon, same shape, thumbs-up active / middle-finger bypass */
+.module-bypass{appearance:none;-webkit-appearance:none;padding:0;cursor:pointer;font-family:Arial,sans-serif;font-size:23px;line-height:1;transition:transform .12s ease,filter .18s ease,box-shadow .18s ease,color .18s ease;background:#11171c!important}
+.module-bypass:not(.bypassed){color:#ffbd45!important;border-color:var(--amber)!important;filter:drop-shadow(0 0 5px rgba(229,161,47,.32));}
+.module-bypass.bypassed{color:#9da5aa!important;border-color:#46515a!important;filter:grayscale(1) brightness(.9);box-shadow:none!important}
+.module-bypass:active{transform:scale(.96)}
+.module-bypass.eq-icon:not(.bypassed){border-color:#ae83ef!important;color:#d8bfff!important}
+.module-bypass.cab-icon:not(.bypassed){border-color:#52d8cb!important;color:#a9fff4!important}
+.module-bypass.fx-icon:not(.bypassed){border-color:#55aef4!important;color:#a9dfff!important}
