@@ -8,6 +8,8 @@ class SolarNamProcessor extends AudioWorkletProcessor {
     this.ready = false;
     this.modelLoaded = false;
     this.bypassed = true;
+    this.processedBlocks = 0;
+    this.processErrorSent = false;
     this.init();
     this.port.onmessage = e => this.handleMessage(e.data || {});
   }
@@ -30,10 +32,15 @@ class SolarNamProcessor extends AudioWorkletProcessor {
     if (data.type === 'loadModel') {
       try {
         this.modelLoaded = Boolean(this.nam.loadModel(this.instanceId, String(data.modelJson || '')));
-        this.bypassed = !this.modelLoaded || Boolean(data.bypass);
+        const hasModel = this.modelLoaded && Boolean(this.nam.hasModel(this.instanceId));
+        this.modelLoaded = hasModel;
+        this.bypassed = !hasModel || Boolean(data.bypass);
+        this.processedBlocks = 0;
+        this.processErrorSent = false;
         this.port.postMessage({
           type: 'modelLoaded',
-          success: this.modelLoaded,
+          success: hasModel,
+          hasModel,
           sampleRate: this.nam.getSampleRate()
         });
       } catch (error) {
@@ -61,8 +68,24 @@ class SolarNamProcessor extends AudioWorkletProcessor {
 
     try {
       this.nam.process(this.instanceId, input, output);
-    } catch {
-      output.set(input);
+      this.processedBlocks++;
+      if ((this.processedBlocks & 63) === 0) {
+        let inputPeak = 0, outputPeak = 0;
+        for (let i = 0; i < input.length; i++) {
+          const a = Math.abs(input[i]), b = Math.abs(output[i]);
+          if (a > inputPeak) inputPeak = a;
+          if (b > outputPeak) outputPeak = b;
+        }
+        this.port.postMessage({ type: 'processing', blocks: this.processedBlocks, inputPeak, outputPeak });
+      }
+    } catch (error) {
+      this.modelLoaded = false;
+      this.bypassed = true;
+      output.fill(0);
+      if (!this.processErrorSent) {
+        this.processErrorSent = true;
+        this.port.postMessage({ type: 'processError', message: String(error?.message || error) });
+      }
     }
     return true;
   }
