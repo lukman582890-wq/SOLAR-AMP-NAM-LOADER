@@ -38,7 +38,8 @@ $newInclude = @'
 #include <nlohmann/json.hpp>
 #include <fstream>
 '@
-$s = $s.Replace($oldInclude, $newInclude)`n$s = $s.Replace('#include "NeuralAmpModelerControls.h"', '')
+$s = $s.Replace($oldInclude, $newInclude)
+$s = $s.Replace('#include "NeuralAmpModelerControls.h"', '')
 $s = [regex]::Replace($s, 'void NeuralAmpModeler::OnIdle\(\)\s*\{.*?\n\}', @'
 void NeuralAmpModeler::OnIdle()
 {
