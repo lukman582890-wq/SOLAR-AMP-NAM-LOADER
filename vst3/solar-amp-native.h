@@ -357,21 +357,4 @@ private:
 
   NAMSender mInputSender, mOutputSender;
 
-  double mODToneState = 0.0;
-  double mAmpToneState = 0.0;
-  double mEqLowState = 0.0;
-  double mEqHighState = 0.0;
-  double mChorusPhase = 0.0;
-  double mTremoloPhase = 0.0;
-  std::vector<float> mDelayBuffer;
-  std::vector<float> mReverbA;
-  std::vector<float> mReverbB;
-  size_t mDelayPos = 0;
-  size_t mReverbAPos = 0;
-  size_t mReverbBPos = 0;
-  int mFXModeValue = 1;
-  double mLastSampleRate = 48000.0;
-
-  void _ResetSolarEffects(double sampleRate);
-  void _ProcessSolarEffects(sample** input, sample** output, size_t numFrames);
 };
