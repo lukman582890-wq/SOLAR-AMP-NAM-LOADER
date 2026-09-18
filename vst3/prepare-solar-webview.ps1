@@ -63,7 +63,7 @@ Copy-Item 'vst3\solar-amp-web.js' (Join-Path $web 'solar-amp-web.js') -Force
 $html=[IO.File]::ReadAllText((Join-Path $web 'index.html'))
 $html=[regex]::Replace($html,'<script>\(\(\)=>\{if\(!\(''serviceWorker'' in navigator\).*?</script>','',[Text.RegularExpressions.RegexOptions]::Singleline)
 $html=$html.Replace('<link rel="manifest" href="manifest.webmanifest">','')
-$html=[regex]::Replace($html,'<script src="app\.js[^"]*"></script>','<script src="solar-amp-web.js"></script>')
+$html=[regex]::Replace($html,'<script src="app\.js[^"]*"></script>','<script src="solar-amp-web.js"></script><script src="app.js"></script>')
 [IO.File]::WriteAllText((Join-Path $web 'index.html'),$html,(New-Object Text.UTF8Encoding($false)))
 
 $c=[IO.File]::ReadAllText((Join-Path $root 'NeuralAmpModeler\config.h'))
