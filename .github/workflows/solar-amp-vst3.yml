@@ -136,8 +136,8 @@ jobs:
           $bundle = Resolve-Path 'vst3-dist\SOLAR AMP.vst3'
           $dll = Get-ChildItem $bundle -Recurse -File -Filter 'SOLARAMP.vst3' | Select-Object -First 1
           if (-not $dll) { throw 'SOLARAMP.vst3 binary not found inside the bundle.' }
-          if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\web\index.html'))) { throw 'WebView index.html missing.' }
-          if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\web\solar-amp-web.js'))) { throw 'SOLAR AMP WebView JS missing.' }
+          if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\SOLAR AMP\web\index.html'))) { throw 'WebView index.html missing.' }
+          if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\SOLAR AMP\web\solar-amp-web.js'))) { throw 'SOLAR AMP WebView JS missing.' }
           $old = Get-ChildItem $bundle -Recurse -File -Filter 'NeuralAmpModeler.vst3'
           if ($old) { throw 'Old NeuralAmpModeler.vst3 binary still exists in SOLAR AMP bundle.' }
           Write-Host 'SOLAR AMP WebView bundle identity/resources verified.'
