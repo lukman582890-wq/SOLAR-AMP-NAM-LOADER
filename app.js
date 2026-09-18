@@ -22,19 +22,65 @@ function refreshNamBypass(){
 async function initNam(){
  if(!ctx?.audioWorklet)return false;
  try{
-  await ctx.audioWorklet.addModule('./nam-worklet.js?v=50');
+  await ctx.audioWorklet.addModule('./nam-worklet.js?v=51');
   namNode=new AudioWorkletNode(ctx,'solar-nam-processor',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1]});
-  namNode.port.onmessage=e=>{
-   const d=e.data||{};
-   if(d.type==='ready'){namReady=true;setText($('modelStatus'),'NAM WASM READY • '+d.sampleRate+' Hz');if(namModelJson)loadNamModel(namModelJson)}
-   if(d.type==='modelLoaded'){namModelLoaded=Boolean(d.success&&d.hasModel);namPending=false;namSourceActive=namModelLoaded;setNamAmpMode(namModelLoaded);setText($('modelStatus'),namModelLoaded?'NAM LOADED • AMP/NAM switch ready • waiting for DSP':'NAM MODEL LOAD FAILED');}
-   if(d.type==='processing'&&namModelLoaded){setText($('modelStatus'),'NAM ACTIVE • real WASM inference • '+d.blocks+' blocks');setText($('engine'),'NAM WASM')}
-   if(d.type==='processError'){namModelLoaded=false;namSourceActive=false;namPending=false;setNamAmpMode(false);setText($('modelStatus'),'NAM DSP ERROR • '+(d.message||'processing failed'));setText($('engine'),'NAM WASM ERROR');refreshDrive();refreshNamBypass()}
-   if(d.type==='error'||d.type==='modelError'){namReady=false;namModelLoaded=false;namSourceActive=false;namPending=false;setNamAmpMode(false);const msg=String(d.message||'unknown error');setText($('modelStatus'),'NAM WASM ERROR • '+msg);setText($('engine'),'NAM WASM ERROR');refreshDrive();refreshNamBypass()}
-  };
-  return true;
+  return await new Promise(resolve=>{
+   let settled=false;
+   const finish=(ok)=>{
+    if(settled)return;
+    settled=true;
+    clearTimeout(timer);
+    resolve(ok);
+   };
+   const timer=setTimeout(()=>{
+    namReady=false;
+    setText($('modelStatus'),'NAM WASM TIMEOUT • processor did not become ready');
+    setText($('engine'),'NAM WASM ERROR');
+    finish(false);
+   },12000);
+   namNode.port.onmessage=e=>{
+    const d=e.data||{};
+    if(d.type==='ready'){
+     namReady=true;
+     setText($('modelStatus'),namModelJson?'NAM WASM READY • loading model…':'NAM WASM READY • '+d.sampleRate+' Hz');
+     finish(true);
+     if(namModelJson)loadNamModel(namModelJson);
+    }
+    if(d.type==='modelLoaded'){
+     namModelLoaded=Boolean(d.success&&d.hasModel);
+     namPending=false;
+     namSourceActive=namModelLoaded;
+     setNamAmpMode(namModelLoaded);
+     setText($('modelStatus'),namModelLoaded?'NAM LOADED • AMP/NAM switch ready • waiting for DSP':'NAM MODEL LOAD FAILED');
+    }
+    if(d.type==='processing'&&namModelLoaded){
+     setText($('modelStatus'),'NAM ACTIVE • real WASM inference • '+d.blocks+' blocks');
+     setText($('engine'),'NAM WASM');
+    }
+    if(d.type==='processError'){
+     namModelLoaded=false;namSourceActive=false;namPending=false;
+     setNamAmpMode(false);
+     setText($('modelStatus'),'NAM DSP ERROR • '+(d.message||'processing failed'));
+     setText($('engine'),'NAM WASM ERROR');
+     refreshDrive();refreshNamBypass();
+    }
+    if(d.type==='error'||d.type==='modelError'){
+     namReady=false;namModelLoaded=false;namSourceActive=false;namPending=false;
+     setNamAmpMode(false);
+     const msg=String(d.message||'unknown error');
+     setText($('modelStatus'),'NAM WASM ERROR • '+msg);
+     setText($('engine'),'NAM WASM ERROR');
+     refreshDrive();refreshNamBypass();
+     finish(false);
+    }
+   };
+  });
  }catch(err){
-  namNode=null;namReady=false;namModelLoaded=false;namMode=false;namSourceActive=false;namPending=false;setNamAmpMode(false);const msg=String(err?.message||err||'unknown error');setText($('modelStatus'),'NAM WASM UNAVAILABLE • '+msg);setText($('engine'),'NAM WASM ERROR');
+  namNode=null;namReady=false;namModelLoaded=false;namMode=false;namSourceActive=false;namPending=false;
+  setNamAmpMode(false);
+  const msg=String(err?.message||err||'unknown error');
+  setText($('modelStatus'),'NAM WASM UNAVAILABLE • '+msg);
+  setText($('engine'),'NAM WASM ERROR');
   return false;
  }
 }
@@ -247,7 +293,6 @@ async function start(){
   await applyCabModel(selectedCab);
   for(const file of pendingIRFiles.splice(0))await loadIRFile(file);
   refreshAllBypass();
-  if(namModelJson)loadNamModel(namModelJson);
   running=true;$('stopAudio')?.removeAttribute('hidden');refreshStatusIndicators();setText($('engine'),'WEB AUDIO');setText($('rate'),ctx.sampleRate+' Hz');setText($('latency'),((ctx.baseLatency||0)*1000).toFixed(1)+' ms');$('start').classList.add('on');$('start').textContent='👍';tick();
  }catch(err){
   setText($('engine'),'AUDIO ERROR');setText($('latency'),err?.name||'Permission denied');
