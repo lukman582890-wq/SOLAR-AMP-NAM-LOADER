@@ -54,6 +54,18 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
   GetParam(kInputCalibrationLevel)
     ->InitDouble(kInputCalibrationLevelParamName.c_str(), kDefaultInputCalibrationLevel, -60.0, 60.0, 0.1, "dBu");
   GetParam(kSlim)->InitDouble("Slim", 0.0, 0.0, 1.0, 0.01);
+  GetParam(kAmpPresence)->InitDouble("Presence", 50.0, 0.0, 100.0, 1.0);
+  GetParam(kODDrive)->InitDouble("OD Drive", 35.0, 0.0, 100.0, 1.0);
+  GetParam(kODTone)->InitDouble("OD Tone", 50.0, 0.0, 100.0, 1.0);
+  GetParam(kODLevel)->InitDouble("OD Level", 72.0, 0.0, 100.0, 1.0);
+  GetParam(kEQLow)->InitDouble("EQ Low", 50.0, 0.0, 100.0, 1.0);
+  GetParam(kEQMid)->InitDouble("EQ Mid", 50.0, 0.0, 100.0, 1.0);
+  GetParam(kEQHigh)->InitDouble("EQ High", 50.0, 0.0, 100.0, 1.0);
+  GetParam(kFXDelay)->InitDouble("FX Delay", 28.0, 0.0, 100.0, 1.0);
+  GetParam(kFXReverb)->InitDouble("FX Reverb", 22.0, 0.0, 100.0, 1.0);
+  GetParam(kODActive)->InitBool("OD Active", true);
+  GetParam(kFXActive)->InitBool("FX Active", true);
+  GetParam(kFXMode)->InitEnum("FX Mode", 1, {"DELAY", "REVERB", "CHORUS", "PHASER", "TREMOLO"});
 
   mNoiseGateTrigger.AddListener(&mNoiseGateGain);
 
