@@ -441,6 +441,7 @@ function applyAmpModel(name){
  selectedAmp=name;
  const profiles={'British 800':{drive:.52,tone:6100},'American Clean':{drive:.16,tone:8200},'Modern 5150':{drive:.68,tone:5600}};
  const p=profiles[name]||profiles['British 800'];ampBaseDrive=p.drive;
+ if(window.__SOLAR_VST3__){const m={'British 800':0,'American Clean':1,'Modern 5150':2};SPVFUI(25,(m[name]??0)/2)}
  if(ctx){nodes._ampToneFrequency=p.tone;refreshDrive();refreshAmpTone()}
 }
 function applyEqModel(name){
