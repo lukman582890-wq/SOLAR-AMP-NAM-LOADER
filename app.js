@@ -139,7 +139,8 @@ async function toggleAmpSource(){
   if(!namModelLoaded){setText($('modelStatus'),'NAM MODEL • still loading…');return}
   if(moduleBypass.amp)moduleBypass.amp=false;
   namMode=!namMode;namSourceActive=namMode;
-  SAMFUI(102,-1,byte64(namMode));
+  SAMFUI(103,-1,byte64(namMode));
+  setNamAmpMode(namMode);
   refreshAllBypass();refreshNamBypass();refreshStatusIndicators();
   setText($('modelStatus'),namMode?'NAM ACTIVE • '+($('fileName')?.textContent||'model'):'AMP ACTIVE • legacy AMP');
   return;
@@ -522,6 +523,8 @@ function saveIRLocal(name,buffer){try{const data=buffer.getChannelData(0);const 
 function applyFxModel(name){
  selectedFx=name;const profiles={'Hall Reverb':{delay:.42,rev:.30},'Plate Reverb':{delay:.18,rev:.38},'Room Reverb':{delay:.10,rev:.20},'Studio Hall':{delay:.32,rev:.34}};
  const p=profiles[name]||profiles['Hall Reverb'];fxBaseDelay=p.delay;fxBaseReverb=p.rev;
+ state.delay=Math.round(p.delay*100);state.reverb=Math.round(p.rev*100);
+ knobSetters.delay?.(state.delay);knobSetters.reverb?.(state.reverb);
  if(window.__SOLAR_VST3__){SPVFUI(20,state.delay/100);SPVFUI(21,state.reverb/100);return}
  refreshFx();
 }
