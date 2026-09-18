@@ -65,7 +65,7 @@ function refreshDrive(){
  if(nodes.odLevel)nodes.odLevel.gain.value=odOn?state.level/100:1;
 }
 function setNamAmpMode(active){
- namMode=Boolean(active)&&Boolean(namModelLoaded)&&Boolean(namReady);
+ namMode=Boolean(active)&&Boolean(namModelLoaded)&&Boolean(namReady);\n if(namModelLoaded)moduleBypass.amp=false;
  const section=$('ampModule');
  if(section){
   section.classList.toggle('nam-active',namMode);
@@ -142,8 +142,8 @@ function apply(k,v){
  if(k==='bass'||k==='mid'||k==='treble'||k==='presence')refreshAmpTone();
  if(k==='eqLow'||k==='eqMid'||k==='eqHigh')refreshEq();
  if(k==='master'&&master)master.gain.value=v/100;
- if(k==='low'&&nodes.low)nodes.low.frequency.value=moduleBypass.amp?1:40+v*1.2;
- if(k==='high'&&nodes.high)nodes.high.frequency.value=moduleBypass.amp?20000:4000+v*60;
+ if(k==='low'&&nodes.low)nodes.low.frequency.value=(moduleBypass.amp||namMode)?1:40+v*1.2;
+ if(k==='high'&&nodes.high)nodes.high.frequency.value=(moduleBypass.amp||namMode)?20000:4000+v*60;
  if(k==='delay'||k==='reverb')refreshFx();
 }
 function makeKnobs(id,names){
