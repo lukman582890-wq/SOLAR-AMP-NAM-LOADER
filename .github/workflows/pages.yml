@@ -4,8 +4,8 @@ on:
     branches: [main]
   workflow_dispatch:
 concurrency:
-  group: github-pages
-  cancel-in-progress: true
+  group: solar-pages
+  cancel-in-progress: false
 permissions:
   contents: read
   pages: write
