@@ -60,6 +60,10 @@ Copy-Item 'vst3\solar-amp-native.cpp' $src -Force
 Copy-Item 'vst3\solar-amp-native.h' $hdr -Force
 Copy-Item 'index.html', 'styles.css', 'icon.svg' -Destination $web -Force
 Copy-Item 'vst3\solar-amp-web.js' (Join-Path $web 'solar-amp-web.js') -Force
+# Native VST3 CAB selector uses the same IR pack as the PWA.
+$irWeb=Join-Path $web 'ir'
+New-Item -ItemType Directory -Force $irWeb | Out-Null
+Copy-Item 'ir\*.wav' $irWeb -Force
 $html=[IO.File]::ReadAllText((Join-Path $web 'index.html'))
 $html=[regex]::Replace($html,'<script>\(\(\)=>\{if\(!\(''serviceWorker'' in navigator\).*?</script>','',[Text.RegularExpressions.RegexOptions]::Singleline)
 $html=$html.Replace('<link rel="manifest" href="manifest.webmanifest">','')
