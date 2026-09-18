@@ -6,10 +6,21 @@ const presets=[
  {name:'Clean Glass',amp:'American Clean',od:'Off',cab:'2x12 Blue',fx:'Plate Reverb'},
  {name:'Modern High Gain',amp:'Modern 5150',od:'Tight OD',cab:'4x12 V30',fx:'Studio Hall'}
 ];
-let presetIndex=0;let savedPresets=[];try{savedPresets=JSON.parse(localStorage.getItem('solarSavedPresets')||'[]');if(!Array.isArray(savedPresets))savedPresets=[]}catch{savedPresets=[]}let selectedAmp='British 800',selectedOd='Tube Screamer',selectedEq='Default',selectedCab='4x12 V30',selectedFx='Hall Reverb',selectedFxMode='DELAY';let setAmp,setOd,setEq,setCab,setFx;let knobSetters={};let ampBaseDrive=.52,odBaseDrive=.34;
+let presetIndex=0;let savedPresets=[];try{savedPresets=JSON.parse(localStorage.getItem('solarSavedPresets')||'[]');if(!Array.isArray(savedPresets))savedPresets=[]}catch{savedPresets=[]}let selectedAmp='British 800',selectedOd='Tube Screamer',selectedEq='Default',selectedCab='4x12 V30',selectedFx='Hall Reverb',selectedFxMode='DELAY';let setAmp,setOd,setEq,setCab,setFx;let knobSetters={};let ampBaseDrive=.52,odBaseDrive=.34,fxBaseDelay=.42,fxBaseReverb=.30;
 const $=id=>document.getElementById(id);
 function curve(k){const c=new Float32Array(44100);for(let i=0;i<c.length;i++){const x=i*2/c.length-1;c[i]=Math.tanh(k*x*4)/Math.tanh(k*4)}return c}
 function setText(el,t){if(el)el.textContent=t}
+function refreshFx(){
+ if(!ctx)return;
+ const d=state.delay/100,r=state.reverb/100,m=selectedFxMode;
+ if(nodes.dw)nodes.dw.gain.value=m==='DELAY'?d*fxBaseDelay/.42:(m==='REVERB'?0:d*fxBaseDelay/.42*.35);
+ if(nodes.rw)nodes.rw.gain.value=m==='REVERB'?r*fxBaseReverb/.30:(m==='DELAY'?r*fxBaseReverb/.30*.35:r*fxBaseReverb/.30*.55);
+ if(nodes.chorusGain)nodes.chorusGain.gain.value=m==='CHORUS'?.55:0;
+ if(nodes.tremLfoGain)nodes.tremLfoGain.gain.value=m==='TREMOLO'?.45:0;
+ if(nodes.tremolo)nodes.tremolo.gain.value=m==='TREMOLO'?1:0;
+ if(nodes.phaserGain)nodes.phaserGain.gain.value=m==='PHASER'?.45:0;
+ if(nodes.chorusDelay)nodes.chorusDelay.delayTime.value=m==='CHORUS'?.025:.001;
+}
 function refreshDrive(){
  if(!ctx)return;
  if(nodes.ampDrive)nodes.ampDrive.curve=curve(Math.max(.03,ampBaseDrive*(.35+state.gain/100*1.45)));
@@ -27,8 +38,7 @@ function apply(k,v){
  if(k==='level'&&nodes.driveLevel)nodes.driveLevel.gain.value=v/100;
  if(k==='low'&&nodes.low)nodes.low.frequency.value=40+v*1.2;
  if(k==='high'&&nodes.high)nodes.high.frequency.value=4000+v*60;
- if(k==='delay'&&nodes.dw)nodes.dw.gain.value=v/100;
- if(k==='reverb'&&nodes.rw)nodes.rw.gain.value=v/100;
+ if(k==='delay'||k==='reverb')refreshFx();
 }
 function makeKnobs(id,names){
  const root=$(id);if(!root)return;root.innerHTML='';
@@ -81,7 +91,7 @@ async function start(){
   const rev=ctx.createConvolver();rev.buffer=impulse(1.6,2.1);nodes.rw=ctx.createGain();
   nodes.chorusDelay=ctx.createDelay(.08);nodes.chorusDelay.delayTime.value=.025;nodes.chorusGain=ctx.createGain();
   nodes.chorusLfo=ctx.createOscillator();nodes.chorusLfoGain=ctx.createGain();nodes.chorusLfo.frequency.value=.8;nodes.chorusLfoGain.gain.value=.008;nodes.chorusLfo.connect(nodes.chorusLfoGain).connect(nodes.chorusDelay.delayTime);nodes.chorusLfo.start();
-  nodes.tremolo=ctx.createGain();nodes.tremolo.gain.value=1;nodes.tremLfo=ctx.createOscillator();nodes.tremLfoGain=ctx.createGain();nodes.tremLfo.frequency.value=4.5;nodes.tremLfoGain.gain.value=0;nodes.tremLfo.connect(nodes.tremLfoGain).connect(nodes.tremolo.gain);nodes.tremLfo.start();
+  nodes.tremolo=ctx.createGain();nodes.tremolo.gain.value=0;nodes.tremLfo=ctx.createOscillator();nodes.tremLfoGain=ctx.createGain();nodes.tremLfo.frequency.value=4.5;nodes.tremLfoGain.gain.value=0;nodes.tremLfo.connect(nodes.tremLfoGain).connect(nodes.tremolo.gain);nodes.tremLfo.start();
   nodes.phaser1=ctx.createBiquadFilter();nodes.phaser1.type='allpass';nodes.phaser1.frequency.value=700;nodes.phaser1.Q.value=.7;
   nodes.phaser2=ctx.createBiquadFilter();nodes.phaser2.type='allpass';nodes.phaser2.frequency.value=1800;nodes.phaser2.Q.value=.7;nodes.phaserGain=ctx.createGain();nodes.phaserGain.gain.value=0;
   nodes.phaserLfo=ctx.createOscillator();nodes.phaserLfoGain=ctx.createGain();nodes.phaserLfo.frequency.value=.32;nodes.phaserLfoGain.gain.value=650;nodes.phaserLfo.connect(nodes.phaserLfoGain).connect(nodes.phaser1.frequency);nodes.phaserLfo.connect(nodes.phaserLfoGain).connect(nodes.phaser2.frequency);nodes.phaserLfo.start();
@@ -185,20 +195,12 @@ function applyCabModel(name){
 }
 function applyFxModel(name){
  selectedFx=name;const profiles={'Hall Reverb':{delay:.42,rev:.30},'Plate Reverb':{delay:.18,rev:.38},'Room Reverb':{delay:.10,rev:.20},'Studio Hall':{delay:.32,rev:.34}};
- const p=profiles[name]||profiles['Hall Reverb'];
- if(ctx&&nodes.dw&&nodes.rw){nodes.dw.gain.value=state.delay/100*p.delay/.42;nodes.rw.gain.value=state.reverb/100*p.rev/.30}
+ const p=profiles[name]||profiles['Hall Reverb'];fxBaseDelay=p.delay;fxBaseReverb=p.rev;refreshFx();
 }
 function applyFxMode(mode){
  selectedFxMode=mode;
  const b=document.querySelectorAll('.fx-modes button');b.forEach(x=>x.classList.toggle('selected',x.textContent.trim()===mode));
- if(!ctx)return;
- const d=state.delay/100,r=state.reverb/100;
- if(nodes.dw)nodes.dw.gain.value=mode==='DELAY'?d:(mode==='REVERB'?0:d*.35);
- if(nodes.rw)nodes.rw.gain.value=mode==='REVERB'?r:(mode==='DELAY'?r*.35:r*.55);
- if(nodes.chorusGain)nodes.chorusGain.gain.value=mode==='CHORUS'?.55:0;
- if(nodes.tremLfoGain)nodes.tremLfoGain.gain.value=mode==='TREMOLO'?.45:0;
- if(nodes.phaserGain)nodes.phaserGain.gain.value=mode==='PHASER'?.45:0;
- if(nodes.chorusDelay)nodes.chorusDelay.delayTime.value=mode==='CHORUS'?.025:.001;
+ refreshFx();
 }
 function wireUI(){
  $('start').addEventListener('click',()=>running?stop():start());
