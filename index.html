@@ -6,10 +6,10 @@
 <meta name="theme-color" content="#080b0e">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=24">
+<link rel="stylesheet" href="styles.css?v=25">
 <title>Solar Amp — NAM Loader</title>
 <script>
-(()=>{const V='solar-ui-v24';if(localStorage.getItem(V)!=='1'){localStorage.setItem(V,'1');navigator.serviceWorker?.getRegistrations?.().then(rs=>Promise.all(rs.map(r=>r.unregister()))).then(()=>caches?.keys?.()).then(ks=>Promise.all((ks||[]).map(k=>caches.delete(k)))).then(()=>location.reload()).catch(()=>location.reload())}})();
+(()=>{const V='solar-ui-v25';if(localStorage.getItem(V)!=='1'){localStorage.setItem(V,'1');navigator.serviceWorker?.getRegistrations?.().then(rs=>Promise.all(rs.map(r=>r.unregister()))).then(()=>caches?.keys?.()).then(ks=>Promise.all((ks||[]).map(k=>caches.delete(k)))).then(()=>location.reload()).catch(()=>location.reload())}})();
 </script></head>
 <body>
 <main>
@@ -78,7 +78,7 @@
 
   <section id="cabModule" class="module cab-module">
     <div class="module-head compact"><div class="module-title"><button type="button" class="module-icon cab-icon module-bypass" data-module="cab" aria-label="Toggle CAB bypass" aria-pressed="true">👍</button><div><h2>CAB</h2><small>CABINET / IR</small></div></div><div id="cabSelect" class="model-select"><button type="button">‹</button><strong id="cabModel">4x12 V30</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
-    <div class="cab-body"><div class="cabinet"><div class="cab-grille">IR<br><small>PACK V1</small></div></div><div class="cab-copy"><b>IR CABINET</b><span id="irStatus">Built-in / Custom</span><div class="cab-rule"></div><label class="ir-upload"><input id="irInput" type="file" accept=".wav,.aiff,.aif,.flac" multiple>ADD YOUR IR</label><small id="irHint">Choose an IR above, or add your own WAV/AIFF/FLAC files.</small></div></div>
+    <div class="cab-body"><div class="cabinet"><div class="cab-grille">IR<br><small>PACK V1</small></div></div><div class="cab-copy"><b>IR CABINET</b><span id="irStatus">Built-in / Custom</span><div class="cab-rule"></div><label class="ir-upload"><input id="irInput" type="file" accept=".wav,.aiff,.aif,.flac" multiple>ADD YOUR IR</label><div id="irLibrary" class="ir-library" aria-label="IR library"></div><small id="irHint">Choose an IR above, or add your own WAV/AIFF/FLAC files.</small></div></div>
   </section>
 
   <section id="fxModule" class="module">
@@ -101,6 +101,6 @@
 
 <footer class="footer"><span>PLAY&nbsp;&nbsp;•&nbsp;&nbsp;EXPLORE&nbsp;&nbsp;•&nbsp;&nbsp;CREATE</span><span>SOLAR AMP&nbsp;&nbsp;v0.1.0</span></footer>
 </main>
-<script src="app.js?v=24"></script>
+<script src="app.js?v=25"></script>
 </body>
 </html>
