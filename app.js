@@ -135,6 +135,15 @@ function setNamAmpMode(active){
 async function toggleAmpSource(){
  if(!running){setText($('modelStatus'),'Start Audio first');return}
  if(!namModelJson){setText($('modelStatus'),'NO NAM MODEL • choose a .NAM file first');return}
+ if(window.__SOLAR_VST3__){
+  if(!namModelLoaded){setText($('modelStatus'),'NAM MODEL • still loading…');return}
+  if(moduleBypass.amp)moduleBypass.amp=false;
+  namMode=!namMode;namSourceActive=namMode;
+  SAMFUI(102,-1,byte64(namMode));
+  refreshAllBypass();refreshNamBypass();refreshStatusIndicators();
+  setText($('modelStatus'),namMode?'NAM ACTIVE • '+($('fileName')?.textContent||'model'):'AMP ACTIVE • legacy AMP');
+  return;
+ }
  if(!namReady||!namModelLoaded){
   namSourceRequested=true;setText($('modelStatus'),'NAM REQUESTED • loading official NAM engine…');
   try{await loadNamModel(namModelJson)}catch{}
