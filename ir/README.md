@@ -1,6 +1,6 @@
 # SOLAR AMP — IR Pack v1
 
-This pack contains 20 user-supplied WAV cabinet impulse responses.
+The built-in IR library contains 20 cabinet impulse responses for the PWA.
 
 ## 6100
 - 6100_ZCB_57_API.wav
@@ -26,4 +26,10 @@ This pack contains 20 user-supplied WAV cabinet impulse responses.
 - 6505_ZCB_906_API.wav
 - 6505_ZCB_906_NV.wav
 
-The binary WAV files are kept outside the UTF-8 GitHub file API in this integration. The PWA supports direct user IR upload and will use the same ConvolverNode path for built-in files when they are packaged under /ir/.
+## PWA behavior
+
+The files are packaged under `/ir/` and loaded through the Web Audio `ConvolverNode` when selected. The CAB selector exposes all 20 built-in IRs.
+
+Users can also add their own WAV/AIFF/FLAC IRs from the CAB module. Custom IRs are kept in the current browser session and are not uploaded to GitHub.
+
+The built-in WAV files are 44.1 kHz, mono, 24-bit PCM in the current Pack v1.
