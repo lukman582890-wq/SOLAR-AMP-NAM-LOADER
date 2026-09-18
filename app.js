@@ -472,7 +472,7 @@ async function applyCabModel(name){
    const r=await fetch('./ir/'+encodeURIComponent(name)+'.wav',{cache:'force-cache'});
    if(!r.ok)throw new Error('HTTP '+r.status);
    const bytes=new Uint8Array(await r.arrayBuffer());
-   SAMFUI(101,-1,btoa(String.fromCharCode(...bytes)));
+   SAMFUI(101,-1,(window.__SOLAR_B64__||((x)=>btoa(String.fromCharCode(...x))))(bytes));
    setText($('cabModel'),formatIRName(name));setText($('irStatus'),'PACK V1 • sending to native DSP');
   }catch(err){setText($('irStatus'),'PACK V1 LOAD ERROR')}
   return;
@@ -558,7 +558,7 @@ document.querySelectorAll('.module-bypass[data-module]:not(#start)').forEach(ico
     const a=String(raw.architecture??raw.model?.architecture??raw.config?.architecture??'').toUpperCase();
     const kind=a.includes('A2')?'NAM A2':a.includes('A1')?'NAM A1':a.includes('WAVENET')?'NAM WaveNet':a.includes('LSTM')?'NAM LSTM':'NAM MODEL';
     namModelJson=rawText;namPending=true;namSourceRequested=true;namReady=true;
-    SAMFUI(100,-1,btoa(String.fromCharCode(...bytes)));
+    SAMFUI(100,-1,(window.__SOLAR_B64__||((x)=>btoa(String.fromCharCode(...x))))(bytes));
     setText($('modelStatus'),f.name+' • '+kind+' • sending to native DSP…');
    }catch(err){namModelJson='';namPending=false;setText($('modelStatus'),'INVALID NAM • '+(err?.message||'JSON parse failed'))}
    refreshStatusIndicators();return;
