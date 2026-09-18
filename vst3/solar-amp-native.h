@@ -10,6 +10,7 @@
 
 #include "ToneStack.h"
 
+#include "IPlugConstants.h"
 #include "IPlug_include_in_plug_hdr.h"
 
 
