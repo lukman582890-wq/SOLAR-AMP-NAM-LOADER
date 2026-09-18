@@ -6,13 +6,18 @@ const presets=[
  {name:'Clean Glass',amp:'American Clean',od:'Off',cab:'2x12 Blue',fx:'Plate Reverb'},
  {name:'Modern High Gain',amp:'Modern 5150',od:'Tight OD',cab:'4x12 V30',fx:'Studio Hall'}
 ];
-let presetIndex=0;let savedPresets=JSON.parse(localStorage.getItem('solarSavedPresets')||'[]');let selectedAmp='British 800',selectedOd='Tube Screamer',selectedEq='Default';let setAmp,setOd,setEq;
+let presetIndex=0;let savedPresets=JSON.parse(localStorage.getItem('solarSavedPresets')||'[]');let selectedAmp='British 800',selectedOd='Tube Screamer',selectedEq='Default',selectedCab='4x12 V30',selectedFx='Hall Reverb',selectedFxMode='DELAY';let setAmp,setOd,setEq,setCab,setFx;let knobSetters={};let ampBaseDrive=.52,odBaseDrive=.34;
 const $=id=>document.getElementById(id);
 function curve(k){const c=new Float32Array(44100);for(let i=0;i<c.length;i++){const x=i*2/c.length-1;c[i]=Math.tanh(k*x*4)/Math.tanh(k*4)}return c}
 function setText(el,t){if(el)el.textContent=t}
+function refreshDrive(){
+ if(!ctx)return;
+ if(nodes.ampDrive)nodes.ampDrive.curve=curve(Math.max(.03,ampBaseDrive*(.35+state.gain/100*1.45)));
+ if(nodes.odDrive)nodes.odDrive.curve=curve(Math.max(.01,odBaseDrive*(.25+state.drive/100*1.5)));
+}
 function apply(k,v){
  if(!ctx)return;
- if((k==='gain'||k==='drive')&&nodes.drive)nodes.drive.curve=curve(.08+v/180);
+ if(k==='gain'||k==='drive')refreshDrive();
  if(k==='bass'&&nodes.bass)nodes.bass.gain.value=(v-50)*.24;
  if(k==='mid'&&nodes.mid)nodes.mid.gain.value=(v-50)*.24;
  if(k==='treble'&&nodes.treble)nodes.treble.gain.value=(v-50)*.24;
@@ -37,7 +42,7 @@ function makeKnobs(id,names){
   const v=document.createElement('b'),l=document.createElement('small');l.textContent=name;
   d.append(f,v,l);let value=state[key]??50;
   function set(x){value=Math.max(0,Math.min(100,Math.round(x)));state[key]=value;v.textContent=value+'%';f.style.setProperty('--pct',value);f.style.setProperty('--angle',(-135+value*2.7)+'deg');apply(key,value)}
-  set(value);
+  knobSetters[key]=set;set(value);
   let sy,sv;
   f.addEventListener('pointerdown',e=>{e.preventDefault();sy=e.clientY;sv=value;f.setPointerCapture?.(e.pointerId)});
   f.addEventListener('pointermove',e=>{if(sy!==undefined)set(sv+(sy-e.clientY)*.5)});
@@ -60,7 +65,8 @@ async function start(){
   const s=ctx.createMediaStreamSource(stream);
   inputAnalyser=ctx.createAnalyser();outputAnalyser=ctx.createAnalyser();inputAnalyser.fftSize=outputAnalyser.fftSize=2048;
   const gate=ctx.createDynamicsCompressor();gate.threshold.value=-42;gate.ratio.value=12;gate.attack.value=.003;gate.release.value=.12;
-  nodes.drive=ctx.createWaveShaper();nodes.drive.curve=curve(.45);nodes.drive.oversample='4x';
+  nodes.odDrive=ctx.createWaveShaper();nodes.odDrive.oversample='4x';
+  nodes.ampDrive=ctx.createWaveShaper();nodes.ampDrive.oversample='4x';
   nodes.tone=ctx.createBiquadFilter();nodes.tone.type='lowpass';nodes.tone.frequency.value=7000;
   nodes.driveLevel=ctx.createGain();nodes.driveLevel.gain.value=.72;
   nodes.bass=ctx.createBiquadFilter();nodes.bass.type='lowshelf';nodes.bass.frequency.value=140;
@@ -69,15 +75,22 @@ async function start(){
   nodes.presence=ctx.createBiquadFilter();nodes.presence.type='peaking';nodes.presence.frequency.value=4500;nodes.presence.Q.value=.7;
   nodes.low=ctx.createBiquadFilter();nodes.low.type='highpass';
   nodes.high=ctx.createBiquadFilter();nodes.high.type='lowpass';nodes.high.frequency.value=7600;
+  nodes.cab=ctx.createBiquadFilter();nodes.cab.type='lowpass';nodes.cab.frequency.value=7200;
+  nodes.cabPresence=ctx.createBiquadFilter();nodes.cabPresence.type='peaking';nodes.cabPresence.frequency.value=2800;nodes.cabPresence.Q.value=.8;
   const delay=ctx.createDelay(1.2);delay.delayTime.value=.42;nodes.dw=ctx.createGain();
   const rev=ctx.createConvolver();rev.buffer=impulse(1.6,2.1);nodes.rw=ctx.createGain();
+  nodes.chorusDelay=ctx.createDelay(.08);nodes.chorusDelay.delayTime.value=.025;nodes.chorusGain=ctx.createGain();
+  nodes.chorusLfo=ctx.createOscillator();nodes.chorusLfoGain=ctx.createGain();nodes.chorusLfo.frequency.value=.8;nodes.chorusLfoGain.gain.value=.008;nodes.chorusLfo.connect(nodes.chorusLfoGain).connect(nodes.chorusDelay.delayTime);nodes.chorusLfo.start();
+  nodes.tremolo=ctx.createGain();nodes.tremolo.gain.value=1;nodes.tremLfo=ctx.createOscillator();nodes.tremLfoGain=ctx.createGain();nodes.tremLfo.frequency.value=4.5;nodes.tremLfoGain.gain.value=.45;nodes.tremLfo.connect(nodes.tremLfoGain).connect(nodes.tremolo.gain);nodes.tremLfo.start();
   const dry=ctx.createGain();dry.gain.value=1;master=ctx.createGain();
-  s.connect(inputAnalyser);s.connect(gate).connect(nodes.drive).connect(nodes.tone).connect(nodes.driveLevel).connect(nodes.bass).connect(nodes.mid).connect(nodes.treble).connect(nodes.presence).connect(nodes.low).connect(nodes.high);
-  nodes.high.connect(dry).connect(master);
-  nodes.high.connect(delay).connect(nodes.dw).connect(master);
-  nodes.high.connect(rev).connect(nodes.rw).connect(master);
+  s.connect(inputAnalyser);s.connect(gate).connect(nodes.odDrive).connect(nodes.ampDrive).connect(nodes.tone).connect(nodes.driveLevel).connect(nodes.bass).connect(nodes.mid).connect(nodes.treble).connect(nodes.presence).connect(nodes.low).connect(nodes.high).connect(nodes.cab).connect(nodes.cabPresence);
+  nodes.cabPresence.connect(dry).connect(master);
+  nodes.cabPresence.connect(delay).connect(nodes.dw).connect(master);
+  nodes.cabPresence.connect(rev).connect(nodes.rw).connect(master);
+  nodes.cabPresence.connect(nodes.chorusDelay).connect(nodes.chorusGain).connect(master);
+  nodes.cabPresence.connect(nodes.tremolo).connect(master);
   master.connect(outputAnalyser).connect(ctx.destination);
-  Object.entries(state).forEach(([k,v])=>apply(k,v));applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);
+  Object.entries(state).forEach(([k,v])=>apply(k,v));applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);applyCabModel(selectedCab);applyFxModel(selectedFx);applyFxMode(selectedFxMode);
   running=true;setText($('engine'),'WEB AUDIO');setText($('rate'),ctx.sampleRate+' Hz');setText($('latency'),((ctx.baseLatency||0)*1000).toFixed(1)+' ms');$('start').classList.add('on');$('start').textContent='👍';tick();
  }catch(err){
   setText($('engine'),'AUDIO ERROR');setText($('latency'),err?.name||'Permission denied');
@@ -104,7 +117,7 @@ function tick(){
 function updatePreset(){
  const p=presets[presetIndex];setText($('presetName'),String(presetIndex+1).padStart(2,'0')+'  '+p.name);
  setAmp?.(p.amp);setOd?.(p.od);setEq?.(p.amp==='American Clean'?'Default':p.amp==='Modern 5150'?'V-Curve':'Mid Focus');
- setText($('cabModel'),p.cab);setText($('fxModel'),p.fx);
+ setCab?.(p.cab);setFx?.(p.fx);
 }
 function cyclePreset(dir){presetIndex=(presetIndex+dir+presets.length)%presets.length;updatePreset()}
 function savePreset(){
@@ -115,9 +128,10 @@ function savePreset(){
 function loadSavedPreset(p){
  if(!p)return;
  Object.assign(state,p.state||{});
- setAmp?.(p.amp||'British 800');setOd?.(p.od||'Tube Screamer');setEq?.(p.eq||'Default');setText($('cabModel'),p.cab||'4x12 V30');setText($('fxModel'),p.fx||'Hall Reverb');
+ setAmp?.(p.amp||'British 800');setOd?.(p.od||'Tube Screamer');setEq?.(p.eq||'Default');setCab?.(p.cab||'4x12 V30');setFx?.(p.fx||'Hall Reverb');
  setText($('presetName'),'★  '+p.name);
- Object.entries(state).forEach(([k,v])=>apply(k,v));applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);
+ Object.entries(state).forEach(([k,v])=>knobSetters[k]?.(v));
+ applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);applyCabModel(selectedCab);applyFxModel(selectedFx);applyFxMode(selectedFxMode);
 }
 function manageSavedPresets(){
  if(!savedPresets.length){alert('Belum ada preset tersimpan.');return}
@@ -141,19 +155,10 @@ function wireModelSelector(selector,values,onChange){
  buttons[1]?.addEventListener('click',()=>{i=(i+1)%values.length;update()});update();return set;
 }
 function applyAmpModel(name){
- selectedAmp=name;if(!ctx)return;
- const profiles={
-  'British 800':{drive:.52,tone:6100,bass:0,mid:3,treble:4,presence:2},
-  'American Clean':{drive:.16,tone:8200,bass:2,mid:-2,treble:3,presence:1},
-  'Modern 5150':{drive:.68,tone:5600,bass:3,mid:-4,treble:5,presence:4}
- };
- const p=profiles[name];if(!p)return;
- nodes.drive.curve=curve(p.drive);
- if(nodes.tone)nodes.tone.frequency.value=p.tone;
- if(nodes.bass)nodes.bass.gain.value=p.bass;
- if(nodes.mid)nodes.mid.gain.value=p.mid;
- if(nodes.treble)nodes.treble.gain.value=p.treble;
- if(nodes.presence)nodes.presence.gain.value=p.presence;
+ selectedAmp=name;
+ const profiles={'British 800':{drive:.52,tone:6100},'American Clean':{drive:.16,tone:8200},'Modern 5150':{drive:.68,tone:5600}};
+ const p=profiles[name]||profiles['British 800'];ampBaseDrive=p.drive;
+ if(ctx){refreshDrive();if(nodes.tone)nodes.tone.frequency.value=p.tone}
 }
 function applyEqModel(name){
  selectedEq=name;const profiles={
@@ -166,9 +171,29 @@ function applyEqModel(name){
  const path=$('eqCurve');if(path)path.setAttribute('d',p.d);
 }
 function applyOdModel(name){
- selectedOd=name;if(!ctx||!nodes.drive)return;
- const profiles={'Tube Screamer':.34,'Tight OD':.48,'Off':.08};
- nodes.drive.curve=curve(profiles[name]??.08);
+ selectedOd=name;const profiles={'Tube Screamer':.34,'Tight OD':.48,'Off':.01};odBaseDrive=profiles[name]??.01;
+ if(ctx)refreshDrive();
+}
+function applyCabModel(name){
+ selectedCab=name;const profiles={'4x12 V30':{cut:7200,pres:2.2},'2x12 Blue':{cut:6500,pres:1.2},'4x10 Green':{cut:8000,pres:-1.5}};
+ const p=profiles[name]||profiles['4x12 V30'];
+ if(ctx){if(nodes.cab)nodes.cab.frequency.value=p.cut;if(nodes.cabPresence)nodes.cabPresence.gain.value=p.pres}
+}
+function applyFxModel(name){
+ selectedFx=name;const profiles={'Hall Reverb':{delay:.42,rev:.30},'Plate Reverb':{delay:.18,rev:.38},'Room Reverb':{delay:.10,rev:.20},'Studio Hall':{delay:.32,rev:.34}};
+ const p=profiles[name]||profiles['Hall Reverb'];
+ if(ctx&&nodes.dw&&nodes.rw){nodes.dw.gain.value=state.delay/100*p.delay/.42;nodes.rw.gain.value=state.reverb/100*p.rev/.30}
+}
+function applyFxMode(mode){
+ selectedFxMode=mode;
+ const b=document.querySelectorAll('.fx-modes button');b.forEach(x=>x.classList.toggle('selected',x.textContent.trim()===mode));
+ if(!ctx)return;
+ const d=state.delay/100,r=state.reverb/100;
+ if(nodes.dw)nodes.dw.gain.value=mode==='DELAY'?d:(mode==='REVERB'?0:d*.35);
+ if(nodes.rw)nodes.rw.gain.value=mode==='REVERB'?r:(mode==='DELAY'?r*.35:r*.55);
+ if(nodes.chorusGain)nodes.chorusGain.gain.value=mode==='CHORUS'?.55:0;
+ if(nodes.tremolo)nodes.tremolo.gain.value=mode==='TREMOLO'?1:1;
+ if(nodes.chorusDelay)nodes.chorusDelay.delayTime.value=mode==='CHORUS'?.025:.001;
 }
 function wireUI(){
  $('start').addEventListener('click',()=>running?stop():start());
@@ -176,12 +201,12 @@ function wireUI(){
 $('savePreset')?.addEventListener('click',savePreset);
 $('presetMenu')?.addEventListener('click',manageSavedPresets);
  document.querySelectorAll('.chain-node[data-target]').forEach(n=>n.addEventListener('click',()=>$(n.dataset.target)?.scrollIntoView({behavior:'smooth',block:'center'})));
- document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.fx-modes button').forEach(x=>x.classList.remove('selected'));b.classList.add('selected')}));
  setAmp=wireModelSelector('#ampSelect',['British 800','American Clean','Modern 5150'],applyAmpModel);
  setOd=wireModelSelector('#odSelect',['Tube Screamer','Tight OD','Off'],applyOdModel);
  setEq=wireModelSelector('#eqSelect',['Default','V-Curve','Mid Focus'],applyEqModel);
- wireModelSelector('#cabSelect',['4x12 V30','2x12 Blue','4x10 Green']);
- wireModelSelector('#fxSelect',['Hall Reverb','Plate Reverb','Room Reverb']);
+ setCab=wireModelSelector('#cabSelect',['4x12 V30','2x12 Blue','4x10 Green'],applyCabModel);
+ setFx=wireModelSelector('#fxSelect',['Hall Reverb','Plate Reverb','Room Reverb','Studio Hall'],applyFxModel);
+ document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>applyFxMode(b.textContent.trim())));
  $('nam').addEventListener('change',async e=>{
   const f=e.target.files?.[0];if(!f)return;setText($('fileName'),f.name);
   try{const raw=JSON.parse(await f.text());const a=String(raw.architecture??raw.model?.architecture??'').toUpperCase();setText($('modelStatus'),f.name+' • '+(a.includes('A2')?'NAM A2':a.includes('A1')?'NAM A1':'NAM architecture unknown')+' • parsed')}
