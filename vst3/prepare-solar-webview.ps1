@@ -29,6 +29,8 @@ $p=$p.Replace('<ProgramDatabaseFile>$(PDB_FILE)</ProgramDatabaseFile>','<Program
 [IO.File]::WriteAllText($props,$p,(New-Object Text.UTF8Encoding($false)))
 
 $x=[IO.File]::ReadAllText($proj)
+$x=[regex]::Replace($x, '\s*<ClInclude Include="[^"]*IGraphics[^"]*" ?/>', '')
+$x=[regex]::Replace($x, '\s*<ClCompile Include="[^"]*IGraphics[^"]*" ?/>', '')
 $nl=[Environment]::NewLine
 $webItemGroup = $nl + '  <ItemGroup>' + $nl +
 '    <ClInclude Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebView.h" />' + $nl +
