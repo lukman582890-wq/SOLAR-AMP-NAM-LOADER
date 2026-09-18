@@ -1,22 +1,3 @@
-// AudioWorkletGlobalScope does not guarantee the Window URL constructor.
-// @opendaw/nam-wasm's Emscripten loader uses new URL(..., import.meta.url)
-// to locate its WASM binary. AudioWorkletGlobalScope does not support
-// dynamic import(), so the package must be a static module dependency.
-if (typeof globalThis.URL === 'undefined') {
-  globalThis.URL = class SolarWorkletURL {
-    constructor(input, base) {
-      const value = String(input ?? '');
-      const baseValue = String(base ?? '');
-      if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value)) this.href = value;
-      else if (baseValue) {
-        const slash = baseValue.lastIndexOf('/');
-        this.href = (slash >= 0 ? baseValue.slice(0, slash + 1) : baseValue + '/') + value;
-      } else this.href = value;
-    }
-    toString() { return this.href; }
-  };
-}
-
 import { createNamModule, NamWasmModule } from './vendor/nam-wasm/index.js';
 
 class SolarNamProcessor extends AudioWorkletProcessor {
@@ -33,9 +14,13 @@ class SolarNamProcessor extends AudioWorkletProcessor {
     this.pendingBypass = true;
     this.init();
     this.port.onmessage = e => this.handleMessage(e.data || {});
+    this.port.postMessage({ type: 'processorStarted', sampleRate });
   }
 
   async init() {
+    const watchdog = setTimeout(() => {
+      if (!this.ready) this.port.postMessage({ type: 'loaderTimeout', message: 'createNamModule() did not finish within 10s' });
+    }, 10000);
     try {
       const emscriptenModule = await createNamModule();
       this.nam = NamWasmModule.fromModule(emscriptenModule);
@@ -43,6 +28,7 @@ class SolarNamProcessor extends AudioWorkletProcessor {
       this.instanceId = this.nam.createInstance();
       this.ready = true;
       this.port.postMessage({ type: 'ready', sampleRate });
+      clearTimeout(watchdog);
       if (this.pendingModelJson) {
         const json = this.pendingModelJson;
         const bypass = this.pendingBypass;
@@ -50,7 +36,8 @@ class SolarNamProcessor extends AudioWorkletProcessor {
         this.handleMessage({ type: 'loadModel', modelJson: json, bypass });
       }
     } catch (error) {
-      this.port.postMessage({ type: 'error', message: String(error?.message || error) });
+      clearTimeout(watchdog);
+      this.port.postMessage({ type: 'error', message: String(error?.stack || error?.message || error) });
     }
   }
 
