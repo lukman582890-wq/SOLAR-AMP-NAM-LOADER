@@ -12,9 +12,18 @@
   };
   const byte64=v=>btoa(String.fromCharCode(v?1:0));
   window.__SOLAR_VST3__=true;
-  window.SPVFUI=(idx,value)=>send({msg:'SPVFUI',paramIdx:idx,value:Number(value)});
-  window.BPCFUI=idx=>send({msg:'BPCFUI',paramIdx:idx});
-  window.EPCFUI=idx=>send({msg:'EPCFUI',paramIdx:idx});
+  // WebView parameter bridge: a VST3 parameter edit must be wrapped in
+  // begin/value/end notifications so the host forwards it to the processor.
+  // The existing SOLAR AMP UI sends atomic values, so each call is a complete
+  // gesture. This also keeps Cubase automation/undo in sync.
+  window.SPVFUI=(idx,value)=>{
+    idx=Number(idx); value=Number(value);
+    send({msg:'BPCFUI',paramIdx:idx});
+    send({msg:'SPVFUI',paramIdx:idx,value});
+    send({msg:'EPCFUI',paramIdx:idx});
+  };
+  window.BPCFUI=idx=>send({msg:'BPCFUI',paramIdx:Number(idx)});
+  window.EPCFUI=idx=>send({msg:'EPCFUI',paramIdx:Number(idx)});
   window.SAMFUI=(msgTag,ctrlTag=-1,data=0)=>send({msg:'SAMFUI',msgTag,ctrlTag,data});
   window.SOLARSetStatus=function(t){
     const s=String(t||'');
