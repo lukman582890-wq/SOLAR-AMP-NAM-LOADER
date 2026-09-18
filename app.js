@@ -22,7 +22,7 @@ function refreshNamBypass(){
 async function initNam(){
  if(!ctx?.audioWorklet)return false;
  try{
-  await ctx.audioWorklet.addModule('./nam-worklet.js?v=41');
+  await ctx.audioWorklet.addModule('./nam-worklet.js?v=42');
   namNode=new AudioWorkletNode(ctx,'solar-nam-processor',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1]});
   namNode.port.onmessage=e=>{
    const d=e.data||{};
@@ -87,7 +87,7 @@ function setNamAmpMode(active){
    power.setAttribute('aria-pressed',String(namMode));
   }
  }
- refreshDrive();refreshAmpTone();refreshNamBypass();
+ refreshDrive();refreshAmpTone();refreshNamBypass();refreshStatusIndicators();
 }
 function toggleAmpSource(){
  if(!namModelLoaded||!namReady){
@@ -98,7 +98,7 @@ function toggleAmpSource(){
  const status=namMode
   ?'NAM ACTIVE • '+(String($('fileName')?.textContent||'model'))
   :'AMP ACTIVE • '+(String(selectedAmp||'legacy AMP'));
- setText($('modelStatus'),status);
+ setText($('modelStatus'),status);refreshStatusIndicators();
 }
 function refreshAmpTone(){
  if(!ctx)return;
@@ -129,13 +129,38 @@ function refreshCab(){
  if(nodes.cab)nodes.cab.frequency.value=cut;
  if(nodes.cabPresence)nodes.cabPresence.gain.value=0;
 }
-function refreshAllBypass(){refreshDrive();refreshAmpTone();refreshEq();refreshCab();refreshFx()}
+function refreshStatusIndicators(){
+ const states={
+  amp:namMode?'NAM':(moduleBypass.amp?'BYPASS':'AMP'),
+  od:moduleBypass.od?'BYPASS':'ACTIVE',
+  cab:moduleBypass.cab?'BYPASS':'ACTIVE',
+  eq:moduleBypass.eq?'BYPASS':'ACTIVE',
+  fx:moduleBypass.fx?'BYPASS':'ACTIVE'
+ };
+ Object.entries(states).forEach(([name,state])=>{
+  const el=$('status'+name.charAt(0).toUpperCase()+name.slice(1));
+  if(!el)return;
+  el.classList.toggle('bypassed',state==='BYPASS');
+  el.classList.toggle('nam',state==='NAM');
+  const em=el.querySelector('em');if(em)em.textContent=state;
+ });
+ const chainMap={od:'odModule',amp:'ampModule',cab:'cabModule',eq:'eqModule',fx:'fxModule'};
+ Object.entries(chainMap).forEach(([name,id])=>{
+  const node=document.querySelector('.chain-node[data-target="'+id+'"]');
+  if(!node)return;
+  const active=name==='amp'?(namMode||!moduleBypass.amp):!moduleBypass[name];
+  node.classList.toggle('active',active);
+  node.classList.toggle('bypassed',!active);
+  node.classList.toggle('nam-active',name==='amp'&&namMode);
+ });
+}
+function refreshAllBypass(){refreshDrive();refreshAmpTone();refreshEq();refreshCab();refreshFx();refreshStatusIndicators()}
 function toggleModule(name){
  if(!(name in moduleBypass))return;
  moduleBypass[name]=!moduleBypass[name];
  const icon=document.querySelector('.module-bypass[data-module="'+name+'"]');
  if(icon){icon.textContent=moduleBypass[name]?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass[name]);icon.setAttribute('aria-pressed',String(moduleBypass[name]));}
- refreshAllBypass();refreshNamBypass();
+ refreshAllBypass();refreshNamBypass();refreshStatusIndicators();
 }
 function apply(k,v){
  if(!ctx)return;
