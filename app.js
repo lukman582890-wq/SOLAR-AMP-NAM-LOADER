@@ -6,19 +6,19 @@ const presets=[
  {name:'Clean Glass',amp:'American Clean',od:'Off',cab:'2x12 Blue',fx:'Plate Reverb'},
  {name:'Modern High Gain',amp:'Modern 5150',od:'Tight OD',cab:'4x12 V30',fx:'Studio Hall'}
 ];
-let presetIndex=0;let savedPresets=[];try{savedPresets=JSON.parse(localStorage.getItem('solarSavedPresets')||'[]');if(!Array.isArray(savedPresets))savedPresets=[]}catch{savedPresets=[]}let selectedAmp='British 800',selectedOd='Tube Screamer',selectedEq='Default',selectedCab='4x12 V30',selectedFx='Hall Reverb',selectedFxMode='DELAY';let setAmp,setOd,setEq,setCab,setFx;let knobSetters={};let ampBaseDrive=.52,odBaseDrive=.34,fxBaseDelay=.42,fxBaseReverb=.30;let irBuffer=null,irName='';let irFiles=new Map();const irPackV1=['6100_ZCB_57_API','6100_ZCB_57_NV','6100_ZCB_57OFF_API','6100_ZCB_57OFF_NV','6100_ZCB_201_API','6100_ZCB_201_NV','6100_ZCB_421_API','6100_ZCB_421_NV','6100_ZCB_906_API','6100_ZCB_906_NV','6505_ZCB_57_API','6505_ZCB_57_NV','6505_ZCB_57OFF_API','6505_ZCB_57OFF_NV','6505_ZCB_201_API','6505_ZCB_201_NV','6505_ZCB_421_API','6505_ZCB_421_NV','6505_ZCB_906_API','6505_ZCB_906_NV'];
+let presetIndex=0;let savedPresets=[];try{savedPresets=JSON.parse(localStorage.getItem('solarSavedPresets')||'[]');if(!Array.isArray(savedPresets))savedPresets=[]}catch{savedPresets=[]}let selectedAmp='British 800',selectedOd='Tube Screamer',selectedEq='Default',selectedCab='4x12 V30',selectedFx='Hall Reverb',selectedFxMode='DELAY';let setAmp,setOd,setEq,setCab,setFx;let knobSetters={};let ampBaseDrive=.52,odBaseDrive=.34,fxBaseDelay=.42,fxBaseReverb=.30;let irBuffer=null,irName='';let irFiles=new Map();let pendingIRFiles=[];let identityIRBuffer=null;const irPackV1=['6100_ZCB_57_API','6100_ZCB_57_NV','6100_ZCB_57OFF_API','6100_ZCB_57OFF_NV','6100_ZCB_201_API','6100_ZCB_201_NV','6100_ZCB_421_API','6100_ZCB_421_NV','6100_ZCB_906_API','6100_ZCB_906_NV','6505_ZCB_57_API','6505_ZCB_57_NV','6505_ZCB_57OFF_API','6505_ZCB_57OFF_NV','6505_ZCB_201_API','6505_ZCB_201_NV','6505_ZCB_421_API','6505_ZCB_421_NV','6505_ZCB_906_API','6505_ZCB_906_NV'];
 const $=id=>document.getElementById(id);
 function curve(k){const c=new Float32Array(44100);for(let i=0;i<c.length;i++){const x=i*2/c.length-1;c[i]=Math.tanh(k*x*4)/Math.tanh(k*4)}return c}
 function setText(el,t){if(el)el.textContent=t}
 function refreshFx(){
  if(!ctx)return;
- const d=state.delay/100,r=state.reverb/100,m=selectedFxMode;
- if(nodes.dw)nodes.dw.gain.value=m==='DELAY'?d*fxBaseDelay/.42:(m==='REVERB'?0:d*fxBaseDelay/.42*.35);
- if(nodes.rw)nodes.rw.gain.value=m==='REVERB'?r*fxBaseReverb/.30:(m==='DELAY'?r*fxBaseReverb/.30*.35:r*fxBaseReverb/.30*.55);
- if(nodes.chorusGain)nodes.chorusGain.gain.value=m==='CHORUS'?.55:0;
- if(nodes.tremLfoGain)nodes.tremLfoGain.gain.value=m==='TREMOLO'?.45:0;
- if(nodes.tremolo)nodes.tremolo.gain.value=m==='TREMOLO'?1:0;
- if(nodes.phaserGain)nodes.phaserGain.gain.value=m==='PHASER'?.45:0;
+ const d=state.delay/100,r=state.reverb/100,m=selectedFxMode,q=moduleBypass.fx?0:1;
+ if(nodes.dw)nodes.dw.gain.value=q*(m==='DELAY'?d*fxBaseDelay/.42:(m==='REVERB'?0:d*fxBaseDelay/.42*.35));
+ if(nodes.rw)nodes.rw.gain.value=q*(m==='REVERB'?r*fxBaseReverb/.30:(m==='DELAY'?r*fxBaseReverb/.30*.35:r*fxBaseReverb/.30*.55));
+ if(nodes.chorusGain)nodes.chorusGain.gain.value=q*(m==='CHORUS'?.55:0);
+ if(nodes.tremLfoGain)nodes.tremLfoGain.gain.value=q*(m==='TREMOLO'?.45:0);
+ if(nodes.tremolo)nodes.tremolo.gain.value=q*(m==='TREMOLO'?1:0);
+ if(nodes.phaserGain)nodes.phaserGain.gain.value=q*(m==='PHASER'?.45:0);
  if(nodes.chorusDelay)nodes.chorusDelay.delayTime.value=m==='CHORUS'?.025:.001;
 }
 function refreshDrive(){
@@ -39,12 +39,10 @@ function refreshEq(){
 }
 function refreshCab(){
  if(!ctx)return;
- if(nodes.ir){nodes.ir.buffer=irBuffer||nodes.ir.buffer;}
-
-
- const cut=moduleBypass.cab?20000:({ '4x12 V30':7200,'2x12 Blue':6500,'4x10 Green':8000}[selectedCab]||7200);
+ if(nodes.ir&&identityIRBuffer)nodes.ir.buffer=moduleBypass.cab?identityIRBuffer:(irBuffer||identityIRBuffer);
+ const cut=moduleBypass.cab?20000:({ '4x12 V30':20000,'2x12 Blue':20000,'4x10 Green':20000}[selectedCab]||20000);
  if(nodes.cab)nodes.cab.frequency.value=cut;
- if(nodes.cabPresence)nodes.cabPresence.gain.value=moduleBypass.cab?0:({ '4x12 V30':2.2,'2x12 Blue':1.2,'4x10 Green':-1.5}[selectedCab]||2.2);
+ if(nodes.cabPresence)nodes.cabPresence.gain.value=moduleBypass.cab?0:0;
 }
 function refreshAllBypass(){refreshDrive();refreshEq();refreshCab();refreshFx()}
 function toggleModule(name){
@@ -112,7 +110,7 @@ async function start(){
   nodes.high=ctx.createBiquadFilter();nodes.high.type='lowpass';nodes.high.frequency.value=7600;
   nodes.cab=ctx.createBiquadFilter();nodes.cab.type='lowpass';nodes.cab.frequency.value=7200;
   nodes.cabPresence=ctx.createBiquadFilter();nodes.cabPresence.type='peaking';nodes.cabPresence.frequency.value=2800;nodes.cabPresence.Q.value=.8;
-  nodes.ir=ctx.createConvolver();nodes.ir.normalize=true;const identity=ctx.createBuffer(1,1,ctx.sampleRate);identity.getChannelData(0)[0]=1;nodes.ir.buffer=identity;
+  nodes.ir=ctx.createConvolver();nodes.ir.normalize=false;identityIRBuffer=ctx.createBuffer(1,1,ctx.sampleRate);identityIRBuffer.getChannelData(0)[0]=1;nodes.ir.buffer=identityIRBuffer;
   const delay=ctx.createDelay(1.2);delay.delayTime.value=.42;nodes.dw=ctx.createGain();
   const rev=ctx.createConvolver();rev.buffer=impulse(1.6,2.1);nodes.rw=ctx.createGain();
   nodes.chorusDelay=ctx.createDelay(.08);nodes.chorusDelay.delayTime.value=.025;nodes.chorusGain=ctx.createGain();
@@ -130,7 +128,10 @@ async function start(){
   nodes.cabPresence.connect(nodes.tremolo).connect(master);
   nodes.cabPresence.connect(nodes.phaser1).connect(nodes.phaser2).connect(nodes.phaserGain).connect(master);
   master.connect(outputAnalyser).connect(ctx.destination);
-  Object.entries(state).forEach(([k,v])=>apply(k,v));applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);applyCabModel(selectedCab);applyFxModel(selectedFx);applyFxMode(selectedFxMode);refreshAllBypass();
+  Object.entries(state).forEach(([k,v])=>apply(k,v));applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);applyFxModel(selectedFx);applyFxMode(selectedFxMode);
+  await applyCabModel(selectedCab);
+  for(const file of pendingIRFiles.splice(0))await loadIRFile(file);
+  refreshAllBypass();
   running=true;setText($('engine'),'WEB AUDIO');setText($('rate'),ctx.sampleRate+' Hz');setText($('latency'),((ctx.baseLatency||0)*1000).toFixed(1)+' ms');$('start').classList.add('on');$('start').textContent='👍';tick();
  }catch(err){
   setText($('engine'),'AUDIO ERROR');setText($('latency'),err?.name||'Permission denied');
@@ -247,19 +248,36 @@ function applyOdModel(name){
 }
 async function applyCabModel(name){
  selectedCab=name;
- if(irPackV1.includes(name)&&ctx){try{const r=await fetch('./ir/'+encodeURIComponent(name)+'.wav');if(r.ok){const decoded=await ctx.decodeAudioData(await r.arrayBuffer());irBuffer=decoded;irName=name;irFiles.set(name,{buffer:decoded});renderIRLibrary();setText($('irStatus'),'PACK V1 • '+name);refreshCab();return}else setText($('irStatus'),'PACK V1 FILE NOT INSTALLED');}catch{setText($('irStatus'),'PACK V1 FILE NOT INSTALLED')}}
- const profiles={'4x12 V30':{cut:7200,pres:2.2},'2x12 Blue':{cut:6500,pres:1.2},'4x10 Green':{cut:8000,pres:-1.5}};
- const p=profiles[name]||profiles['4x12 V30'];
+ if(irPackV1.includes(name)){
+  if(!ctx){setText($('irStatus'),'PACK V1 • READY');return}
+  try{
+   const r=await fetch('./ir/'+encodeURIComponent(name)+'.wav',{cache:'force-cache'});
+   if(!r.ok)throw new Error('HTTP '+r.status);
+   const decoded=await ctx.decodeAudioData(await r.arrayBuffer());
+   irBuffer=decoded;irName=name;irFiles.set(name,{buffer:decoded});renderIRLibrary();
+   setText($('cabModel'),name);setText($('irStatus'),'PACK V1 • '+name);refreshCab();return;
+  }catch(err){
+   setText($('irStatus'),'PACK V1 LOAD ERROR');console.error('IR load failed',name,err);
+  }
+ }
  if(ctx)refreshCab();
 }
 function renderIRLibrary(){
  const box=$('irLibrary');if(!box)return;box.innerHTML='';
- irFiles.forEach((v,name)=>{const b=document.createElement('button');b.type='button';b.className='ir-item';b.textContent=name;b.title=name;b.addEventListener('click',()=>{irBuffer=v.buffer;irName=name;setText($('cabModel'),name.replace(/\.(wav|aiff?|flac)$/i,''));setText($('irStatus'),'CUSTOM • '+name);refreshCab()});box.appendChild(b)});
+ irFiles.forEach((v,name)=>{
+  const b=document.createElement('button');b.type='button';b.className='ir-item';b.textContent=name;b.title=name;
+  b.addEventListener('click',()=>{irBuffer=v.buffer;irName=name;selectedCab=name;setText($('cabModel'),name.replace(/\.(wav|aiff?|flac)$/i,''));setText($('irStatus'),irPackV1.includes(name)?'PACK V1 • '+name:'CUSTOM • '+name);refreshCab()});
+  box.appendChild(b);
+ });
 }
 async function loadIRFile(file){
- if(!file||!ctx)return;
- try{const buf=await file.arrayBuffer();const decoded=await ctx.decodeAudioData(buf.slice(0));irBuffer=decoded;irName=file.name;irFiles.set(file.name,{buffer:decoded});renderIRLibrary();setText($('cabModel'),file.name.replace(/\.(wav|aiff?|flac)$/i,''));setText($('irStatus'),'CUSTOM • '+file.name);refreshCab();}
- catch(e){setText($('irStatus'),'IR LOAD ERROR');console.error(e)}
+ if(!file)return;
+ if(!ctx){pendingIRFiles.push(file);setText($('irStatus'),'CUSTOM • QUEUED — START AUDIO');return}
+ try{
+  const buf=await file.arrayBuffer();const decoded=await ctx.decodeAudioData(buf.slice(0));
+  irBuffer=decoded;irName=file.name;selectedCab=file.name;irFiles.set(file.name,{buffer:decoded});renderIRLibrary();
+  setText($('cabModel'),file.name.replace(/\.(wav|aiff?|flac)$/i,''));setText($('irStatus'),'CUSTOM • '+file.name);refreshCab();
+ }catch(e){setText($('irStatus'),'IR LOAD ERROR');console.error('Custom IR load failed',e)}
 }
 function saveIRLocal(name,buffer){try{const data=buffer.getChannelData(0);const arr=new Float32Array(data);localStorage.setItem('solarLastIRName',name);localStorage.setItem('solarLastIR',btoa(String.fromCharCode(...new Uint8Array(arr.buffer))));}catch{}}
 
@@ -283,7 +301,7 @@ $('presetMenu')?.addEventListener('click',manageSavedPresets);
  setEq=wireModelSelector('#eqSelect',['Default','V-Curve','Mid Focus'],applyEqModel);
  wireEqGraph();
  setCab=wireModelSelector('#cabSelect',irPackV1,applyCabModel);
-document.querySelector('#irInput')?.addEventListener('change',async e=>{for(const f of [...(e.target.files||[])])await loadIRFile(f)});renderIRLibrary();
+document.querySelector('#irInput')?.addEventListener('change',async e=>{for(const f of [...(e.target.files||[])])await loadIRFile(f);e.target.value=''});renderIRLibrary();
  setFx=wireModelSelector('#fxSelect',['Hall Reverb','Plate Reverb','Room Reverb','Studio Hall'],applyFxModel);
  document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>applyFxMode(b.textContent.trim())));
 document.querySelectorAll('.module-bypass[data-module]').forEach(icon=>icon.addEventListener('click',()=>toggleModule(icon.dataset.module)));
