@@ -19,16 +19,27 @@ class SolarNamProcessor extends AudioWorkletProcessor {
 
   async init() {
     const watchdog = setTimeout(() => {
-      if (!this.ready) this.port.postMessage({ type: 'loaderTimeout', message: 'createNamModule() did not finish within 10s' });
+      if (!this.ready) this.port.postMessage({ type: 'loaderTimeout', message: 'NAM WASM initialization exceeded 10s' });
     }, 10000);
     try {
-      const emscriptenModule = await createNamModule();
+      const wasmUrl = new URL('./vendor/nam-wasm/nam.wasm', import.meta.url);
+      const wasmResponse = await fetch(wasmUrl, { cache: 'no-store' });
+      if (!wasmResponse.ok) throw new Error('nam.wasm HTTP '+wasmResponse.status);
+      const wasmBinary = await wasmResponse.arrayBuffer();
+      this.port.postMessage({ type: 'wasmFetched', bytes: wasmBinary.byteLength });
+
+      const emscriptenModule = await createNamModule({
+        wasmBinary,
+        locateFile: (path) => new URL('./vendor/nam-wasm/' + path, import.meta.url).href
+      });
       this.nam = NamWasmModule.fromModule(emscriptenModule);
       this.nam.setSampleRate(sampleRate);
+      this.nam.setMaxBufferSize(128);
       this.instanceId = this.nam.createInstance();
+      if (this.instanceId < 0) throw new Error('NAM createInstance failed');
       this.ready = true;
-      this.port.postMessage({ type: 'ready', sampleRate });
       clearTimeout(watchdog);
+      this.port.postMessage({ type: 'ready', sampleRate, instanceId: this.instanceId });
       if (this.pendingModelJson) {
         const json = this.pendingModelJson;
         const bypass = this.pendingBypass;
@@ -40,7 +51,6 @@ class SolarNamProcessor extends AudioWorkletProcessor {
       this.port.postMessage({ type: 'error', message: String(error?.stack || error?.message || error) });
     }
   }
-
   handleMessage(data) {
     if (data.type === 'loadModel' && !this.ready) {
       this.pendingModelJson = String(data.modelJson || '');
@@ -50,7 +60,18 @@ class SolarNamProcessor extends AudioWorkletProcessor {
     if (!this.nam || !this.ready) return;
     if (data.type === 'loadModel') {
       try {
-        this.modelLoaded = Boolean(this.nam.loadModel(this.instanceId, String(data.modelJson || '')));
+        const modelJson = String(data.modelJson || '');
+        let meta = {};
+        try {
+          const parsed = JSON.parse(modelJson);
+          meta = {
+            version: String(parsed.version || ''),
+            architecture: String(parsed.architecture || ''),
+            sampleRate: Number(parsed.sample_rate || parsed.sampleRate || 0) || 0,
+            weights: Array.isArray(parsed.weights) ? parsed.weights.length : 0
+          };
+        } catch {}
+        this.modelLoaded = Boolean(this.nam.loadModel(this.instanceId, modelJson));
         const hasModel = this.modelLoaded && Boolean(this.nam.hasModel(this.instanceId));
         this.modelLoaded = hasModel;
         this.bypassed = !hasModel || Boolean(data.bypass);
@@ -60,7 +81,11 @@ class SolarNamProcessor extends AudioWorkletProcessor {
           type: 'modelLoaded',
           success: hasModel,
           hasModel,
-          sampleRate: this.nam.getSampleRate()
+          sampleRate: this.nam.getSampleRate(),
+          version: meta.version,
+          architecture: meta.architecture,
+          modelSampleRate: meta.sampleRate,
+          weights: meta.weights
         });
       } catch (error) {
         this.modelLoaded = false;
