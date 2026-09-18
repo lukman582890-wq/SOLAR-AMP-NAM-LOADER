@@ -298,3 +298,6 @@ main{width:100%;max-width:1080px;margin-inline:auto}
  .cab-body{gap:10px}
  .cabinet{flex:0 0 110px}
 }
+
+
+.ir-upload{display:inline-flex;align-items:center;justify-content:center;margin-top:8px;padding:7px 11px;border:1px solid #59635d;border-radius:6px;background:linear-gradient(#303832,#111612);font:700 9px Arial;letter-spacing:1px;color:#dce9df;cursor:pointer}.ir-upload input{display:none}.cab-copy{gap:7px}.cab-copy #irStatus{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
