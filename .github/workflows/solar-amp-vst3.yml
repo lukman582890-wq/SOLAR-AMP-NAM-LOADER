@@ -152,5 +152,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: SOLAR-AMP-VST3-Windows-x64
-          path: vst3-dist/SOLAR AMP.vst3
+          path: vst3-dist/
           if-no-files-found: error
