@@ -305,6 +305,7 @@ private:
 
   std::atomic<bool> mNewModelLoadedInDSP = false;
   std::atomic<bool> mModelCleared = false;
+  std::atomic<bool> mNativeAmpBypass = false;
 
   // Tone stack modules
   std::unique_ptr<dsp::tone_stack::AbstractToneStack> mToneStack;
