@@ -6,10 +6,10 @@
 <meta name="theme-color" content="#080b0e">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=42">
+<link rel="stylesheet" href="styles.css?v=43">
 <title>Solar Amp — NAM Loader</title>
 <script>
-(()=>{const V='solar-ui-v42';if(localStorage.getItem(V)!=='1'){localStorage.setItem(V,'1');navigator.serviceWorker?.getRegistrations?.().then(rs=>Promise.all(rs.map(r=>r.unregister()))).then(()=>caches?.keys?.()).then(ks=>Promise.all((ks||[]).map(k=>caches.delete(k)))).then(()=>location.reload()).catch(()=>location.reload())}})();
+(()=>{const V='solar-ui-v43';if(localStorage.getItem(V)!=='1'){localStorage.setItem(V,'1');navigator.serviceWorker?.getRegistrations?.().then(rs=>Promise.all(rs.map(r=>r.unregister()))).then(()=>caches?.keys?.()).then(ks=>Promise.all((ks||[]).map(k=>caches.delete(k)))).then(()=>location.reload()).catch(()=>location.reload())}})();
 </script></head>
 <body>
 <main>
@@ -46,14 +46,12 @@
   <div class="chain-node" data-target="telemetry"><b>▥</b><span>OUT</span><i></i></div>
 </section>
 
-<section class="mode-status" aria-label="Audio module status">
-  <span class="status-caption">STATUS</span>
+<section class="mode-status" aria-label="AMP NAM bypass status">
+  <span class="status-caption">AMP MODE</span>
   <div class="status-pills">
-    <span class="status-pill" id="statusAmp"><i></i><b>AMP</b><em>ACTIVE</em></span>
-    <span class="status-pill" id="statusOd"><i></i><b>OD</b><em>BYPASS</em></span>
-    <span class="status-pill" id="statusCab"><i></i><b>CAB</b><em>ACTIVE</em></span>
-    <span class="status-pill" id="statusEq"><i></i><b>EQ</b><em>BYPASS</em></span>
-    <span class="status-pill" id="statusFx"><i></i><b>FX</b><em>BYPASS</em></span>
+    <span class="status-pill amp-state" id="stateAmp"><i></i><b>AMP</b></span>
+    <span class="status-pill nam-state" id="stateNam"><i></i><b>NAM</b></span>
+    <span class="status-pill bypass-state" id="stateBypass"><i></i><b>BYPASS</b></span>
   </div>
 </section>
 <section id="telemetry" class="telemetry">
@@ -112,6 +110,6 @@
 
 <footer class="footer"><span>PLAY&nbsp;&nbsp;•&nbsp;&nbsp;EXPLORE&nbsp;&nbsp;•&nbsp;&nbsp;CREATE</span><span>SOLAR AMP&nbsp;&nbsp;v0.1.0</span></footer>
 </main>
-<script src="app.js?v=42"></script>
+<script src="app.js?v=43"></script>
 </body>
 </html>
