@@ -54,20 +54,12 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
   mEditorInitFunc = [&]()
   {
     WDL_String resourcePath;
-    BundleResourcePath(resourcePath);
-    // Windows VST3 BundleResourcePath() already points at Contents\\Resources.
-    // Keep the primary path flat (Resources/web) and retain a fallback for older
-    // SOLAR AMP bundles that used Resources/SOLAR AMP/web.
-    WDL_String primary(resourcePath);
-    primary.Append("web/index.html");
-    if (std::filesystem::exists(std::filesystem::u8path(primary.Get())))
-      LoadFile(primary.Get(), GetBundleID());
-    else
-    {
-      WDL_String fallback(resourcePath);
-      fallback.Append("SOLAR AMP/web/index.html");
-      LoadFile(fallback.Get(), GetBundleID());
-    }
+    // On Windows VST3, BundleResourcePath needs the plug-in module handle.
+    // The previous call used the default (NULL) module and could resolve the
+    // host process instead of SOLAR AMP's own Contents\\Resources directory.
+    BundleResourcePath(resourcePath, GetBundleID());
+    resourcePath.Append("web/index.html");
+    LoadFile(resourcePath.Get(), GetBundleID());
     EnableScroll(false);
   };
 }
