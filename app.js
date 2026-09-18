@@ -94,7 +94,7 @@ function toggleModule(name){
  if(!(name in moduleBypass))return;
  moduleBypass[name]=!moduleBypass[name];
  const icon=document.querySelector('.module-bypass[data-module="'+name+'"]');
- if(icon){icon.textContent=moduleBypass[name]?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass[name]);icon.setAttribute('aria-pressed',String(!moduleBypass[name]));}
+ if(icon){icon.textContent=moduleBypass[name]?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass[name]);icon.setAttribute('aria-pressed',String(moduleBypass[name]));}
  refreshAllBypass();refreshNamBypass();
 }
 function apply(k,v){
@@ -183,15 +183,15 @@ async function start(){
   for(const file of pendingIRFiles.splice(0))await loadIRFile(file);
   refreshAllBypass();
   if(namModelJson)loadNamModel(namModelJson);
-  running=true;setText($('engine'),'WEB AUDIO');setText($('rate'),ctx.sampleRate+' Hz');setText($('latency'),((ctx.baseLatency||0)*1000).toFixed(1)+' ms');$('start').classList.add('on');$('start').textContent='👍';tick();
+  running=true;$('stopAudio')?.removeAttribute('hidden');setText($('engine'),'WEB AUDIO');setText($('rate'),ctx.sampleRate+' Hz');setText($('latency'),((ctx.baseLatency||0)*1000).toFixed(1)+' ms');$('start').classList.add('on');$('start').textContent='👍';tick();
  }catch(err){
   setText($('engine'),'AUDIO ERROR');setText($('latency'),err?.name||'Permission denied');
   try{ctx?.close()}catch{}ctx=null;stream?.getTracks().forEach(t=>t.stop());stream=null;
  }
 }
 function stop(){
- cancelAnimationFrame(raf);stream?.getTracks().forEach(t=>t.stop());stream=null;ctx?.close();ctx=null;running=false;
- $('start').classList.remove('on');$('start').textContent='🖕';setText($('engine'),'WEB AUDIO');setText($('rate'),'—');setText($('latency'),'—');$('in').value=0;$('out').value=0;setText($('note'),'—');setText($('hz'),'—');setText($('cents'),'PLAY A NOTE');
+ cancelAnimationFrame(raf);stream?.getTracks().forEach(t=>t.stop());stream=null;ctx?.close();ctx=null;running=false;namNode=null;namReady=false;namModelLoaded=false;
+ $('stopAudio')?.setAttribute('hidden','');$('start').classList.remove('on');$('start').classList.remove('bypassed');$('start').textContent='🖕';$('start').setAttribute('aria-pressed','false');setText($('engine'),'WEB AUDIO');setText($('rate'),'—');setText($('latency'),'—');$('in').value=0;$('out').value=0;setText($('note'),'—');setText($('hz'),'—');setText($('cents'),'PLAY A NOTE');
 }
 function tick(){
  if(!running)return;
@@ -350,7 +350,8 @@ function applyFxMode(mode){
  refreshFx();
 }
 function wireUI(){
- $('start').addEventListener('click',()=>running?stop():start());
+ $('start').addEventListener('click',()=>{if(!running){start();return}toggleModule('amp')});
+ $('stopAudio')?.addEventListener('click',stop);
  $('presetPrev')?.addEventListener('click',()=>cyclePreset(-1));$('presetNext')?.addEventListener('click',()=>cyclePreset(1));
 $('savePreset')?.addEventListener('click',savePreset);
 $('presetMenu')?.addEventListener('click',manageSavedPresets);
