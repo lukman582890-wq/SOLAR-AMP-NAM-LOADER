@@ -67,7 +67,7 @@ jobs:
           $p = [IO.File]::ReadAllText($props)
           $p = $p.Replace('<BINARY_NAME>NeuralAmpModeler</BINARY_NAME>', '<BINARY_NAME>SOLARAMP</BINARY_NAME>')
           $p = $p.Replace('<EXTRA_ALL_DEFS>IGRAPHICS_NANOVG;IGRAPHICS_GL2;GRAYED_ALPHA=0.5f;NAM_ENABLE_A2_FAST</EXTRA_ALL_DEFS>', '<EXTRA_ALL_DEFS>WEBVIEW_EDITOR_DELEGATE;NO_IGRAPHICS;GRAYED_ALPHA=0.5f;NAM_ENABLE_A2_FAST</EXTRA_ALL_DEFS>')
-          $p = $p.Replace('<EXTRA_INC_PATHS>', '<EXTRA_INC_PATHS>$(IPLUG2_ROOT)\Dependencies\Extras\nlohmann;$(IPLUG2_ROOT)\Dependencies\Extras\wil;$(IPLUG2_ROOT)\Dependencies\Extras\WebView2\build\native\include;')
+          $p = $p.Replace('<EXTRA_INC_PATHS>', '<EXTRA_INC_PATHS>$(IPLUG2_ROOT)\Dependencies\Extras\nlohmann;$(IPLUG2_ROOT)\Dependencies\Extras\wil\include;$(IPLUG2_ROOT)\Dependencies\Extras\WebView2\build\native\include;')
           $p = [regex]::Replace($p, '<AdditionalIncludeDirectories>', '<AdditionalIncludeDirectories>$(IPLUG2_ROOT)\Dependencies\Extras\wil;$(IPLUG2_ROOT)\Dependencies\Extras\WebView2\build\native\include;')
           $p = [regex]::Replace($p, '<AdditionalDependencies>', '<AdditionalDependencies>wininet.lib;comctl32.lib;Shlwapi.lib;ole32.lib;user32.lib;advapi32.lib;shell32.lib;WebView2LoaderStatic.lib;')
           $p = [regex]::Replace($p, '<AdditionalLibraryDirectories>', '<AdditionalLibraryDirectories>$(IPLUG2_ROOT)\Dependencies\Extras\WebView2\build\native\x64;')
