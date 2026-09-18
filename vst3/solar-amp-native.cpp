@@ -257,6 +257,13 @@ void NeuralAmpModeler::OnReset()
   // I'm ignoring the model & IR, but it's not the end of the world.
   const int tailCycles = 10;
   SetTailSize(tailCycles * (int)(sampleRate / kDCBlockerFrequency));
+  mDelayBuffer.assign(static_cast<size_t>(sampleRate * 1.25) + static_cast<size_t>(maxBlockSize) + 1, 0.0f);
+  mReverbBuffer.assign(static_cast<size_t>(sampleRate * 0.45) + static_cast<size_t>(maxBlockSize) + 1, 0.0f);
+  mDelayWritePos = 0;
+  mReverbWritePos = 0;
+  mODToneState = 0.0f;
+  mEQLowState = 0.0f;
+  mEQHighState = 0.0f);
   mInputSender.Reset(sampleRate);
   mOutputSender.Reset(sampleRate);
   // If there is a model or IR loaded, they need to be checked for resampling.
