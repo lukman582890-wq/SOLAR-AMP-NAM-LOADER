@@ -1,4 +1,4 @@
-let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,raf,installEvent;let namNode=null,namReady=false,namModelLoaded=false,namModelJson='';const moduleBypass={amp:false,od:false,eq:false,cab:false,fx:false};let eqGraph={low:0,mid:0,high:0};
+let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,raf,installEvent;let namNode=null,namReady=false,namModelLoaded=false,namMode=false,namModelJson='';const moduleBypass={amp:false,od:false,eq:false,cab:false,fx:false};let eqGraph={low:0,mid:0,high:0};
 const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const state={gain:25,bass:100,mid:50,treble:50,presence:50,master:100,drive:35,tone:50,level:72,mic:50,low:50,high:70,delay:28,reverb:22,eqLow:50,eqMid:50,eqHigh:50};
 const presets=[
@@ -17,7 +17,7 @@ function formatIRName(name){
 }
 function refreshNamBypass(){
  if(!namNode)return;
- namNode.port.postMessage({type:'bypass',value:moduleBypass.amp||!namModelLoaded});
+ namNode.port.postMessage({type:'bypass',value:moduleBypass.amp||!namModelLoaded||!namMode});
 }
 async function initNam(){
  if(!ctx?.audioWorklet)return false;
@@ -27,14 +27,14 @@ async function initNam(){
   namNode.port.onmessage=e=>{
    const d=e.data||{};
    if(d.type==='ready'){namReady=true;setText($('modelStatus'),'NAM WASM READY • '+d.sampleRate+' Hz');if(namModelJson)loadNamModel(namModelJson)}
-   if(d.type==='modelLoaded'){namModelLoaded=Boolean(d.success&&d.hasModel);setNamAmpMode(namModelLoaded);setText($('modelStatus'),namModelLoaded?'NAM LOADED • AMP stage replaced • waiting for DSP':'NAM MODEL LOAD FAILED');refreshDrive();refreshAmpTone();refreshNamBypass()}
+   if(d.type==='modelLoaded'){namModelLoaded=Boolean(d.success&&d.hasModel);setNamAmpMode(namModelLoaded);setNamAmpMode(namModelLoaded);setText($('modelStatus'),namModelLoaded?'NAM LOADED • AMP/NAM switch ready • waiting for DSP':'NAM MODEL LOAD FAILED');}
    if(d.type==='processing'&&namModelLoaded){setText($('modelStatus'),'NAM ACTIVE • real WASM inference • '+d.blocks+' blocks');setText($('engine'),'NAM WASM')}
    if(d.type==='processError'){namModelLoaded=false;setNamAmpMode(false);setText($('modelStatus'),'NAM DSP ERROR • '+(d.message||'processing failed'));setText($('engine'),'NAM WASM ERROR');refreshDrive();refreshNamBypass()}
    if(d.type==='error'||d.type==='modelError'){namReady=false;namModelLoaded=false;setNamAmpMode(false);setText($('modelStatus'),'NAM WASM ERROR • '+(d.message||'unknown error'));refreshDrive();refreshNamBypass()}
   };
   return true;
  }catch(err){
-  namNode=null;namReady=false;namModelLoaded=false;setNamAmpMode(false);setText($('modelStatus'),'NAM WASM UNAVAILABLE • Web Audio fallback');
+  namNode=null;namReady=false;namModelLoaded=false;namMode=false;setNamAmpMode(false);setText($('modelStatus'),'NAM WASM UNAVAILABLE • Web Audio fallback');
   return false;
  }
 }
@@ -55,7 +55,7 @@ function refreshFx(){
 }
 function refreshDrive(){
  if(!ctx)return;
- const ampOn=!moduleBypass.amp&&!namModelLoaded;
+ const ampOn=!moduleBypass.amp&&!namMode;
  const odOn=!moduleBypass.od&&selectedOd!=='Off';
  // Bypass must be transparent: never disconnect the chain and never null the WaveShaper curve.
  // A null WaveShaper curve is allowed by Web Audio, but the intended bypass is unity passthrough.
@@ -65,26 +65,45 @@ function refreshDrive(){
  if(nodes.odLevel)nodes.odLevel.gain.value=odOn?state.level/100:1;
 }
 function setNamAmpMode(active){
+ namMode=Boolean(active)&&Boolean(namModelLoaded)&&Boolean(namReady);
  const section=$('ampModule');
  if(section){
-  section.classList.toggle('nam-active',Boolean(active));
+  section.classList.toggle('nam-active',namMode);
   const select=$('ampSelect');
-  select?.querySelectorAll('button').forEach(b=>b.disabled=Boolean(active));
+  select?.querySelectorAll('button').forEach(b=>b.disabled=namMode);
   const knobs=$('amp');
   if(knobs){
-   knobs.style.pointerEvents=active?'none':'';
-   knobs.style.opacity=active?'.45':'';
-   knobs.setAttribute('aria-disabled',String(Boolean(active)));
+   knobs.style.pointerEvents=namMode?'none':'';
+   knobs.style.opacity=namMode?'.45':'';
+   knobs.setAttribute('aria-disabled',String(namMode));
   }
   const label=$('ampModel');
-  if(label)label.title=active?'AMP controls are bypassed while a NAM model is active':'';
+  if(label)label.title=namMode?'NAM mode active — click AMP power to return to the legacy AMP':'';
+  const power=$('start');
+  if(power){
+   power.textContent=namMode?'NAM':'AMP';
+   power.setAttribute('aria-label',namMode?'Switch to legacy AMP':'Switch to NAM');
+   power.setAttribute('aria-pressed',String(namMode));
+  }
  }
+ refreshDrive();refreshAmpTone();refreshNamBypass();
+}
+function toggleAmpSource(){
+ if(!namModelLoaded||!namReady){
+  toggleModule('amp');
+  return;
+ }
+ setNamAmpMode(!namMode);
+ const status=namMode
+  ?'NAM ACTIVE • '+(String($('fileName')?.textContent||'model'))
+  :'AMP ACTIVE • '+(String(selectedAmp||'legacy AMP'));
+ setText($('modelStatus'),status);
 }
 function refreshAmpTone(){
  if(!ctx)return;
  // A loaded NAM is the complete AMP stage. Do not color or reshape its output
  // with the legacy AMP controls; those controls are locked in the UI.
- const namActive=Boolean(namModelLoaded);
+ const namActive=Boolean(namMode);
  const q=(moduleBypass.amp||namActive)?0:1;
  if(nodes.ampTone)nodes.ampTone.frequency.value=(moduleBypass.amp||namActive)?20000:(nodes._ampToneFrequency||7000);
  if(nodes.bass)nodes.bass.gain.value=(state.bass-50)*.24*q;
@@ -189,7 +208,7 @@ async function start(){
   nodes.phaserLfo=ctx.createOscillator();nodes.phaserLfoGain=ctx.createGain();nodes.phaserLfo.frequency.value=.32;nodes.phaserLfoGain.gain.value=650;nodes.phaserLfo.connect(nodes.phaserLfoGain).connect(nodes.phaser1.frequency);nodes.phaserLfo.connect(nodes.phaserLfoGain).connect(nodes.phaser2.frequency);nodes.phaserLfo.start();
   const dry=ctx.createGain();dry.gain.value=1;master=ctx.createGain();
   await initNam();
-  s.connect(inputAnalyser);s.connect(gate).connect(nodes.odDrive).connect(nodes.odTone).connect(nodes.odLevel).connect(namNode||nodes.ampDrive).connect(nodes.ampTone).connect(nodes.bass).connect(nodes.mid).connect(nodes.treble).connect(nodes.presence).connect(nodes.low).connect(nodes.high).connect(nodes.cab).connect(nodes.cabPresence);
+  s.connect(inputAnalyser);s.connect(gate).connect(nodes.odDrive).connect(nodes.odTone).connect(nodes.odLevel).connect(nodes.ampDrive).connect(namNode||nodes.ampTone).connect(nodes.ampTone).connect(nodes.bass).connect(nodes.mid).connect(nodes.treble).connect(nodes.presence).connect(nodes.low).connect(nodes.high).connect(nodes.cab).connect(nodes.cabPresence);
   nodes.cabPresence.connect(nodes.ir).connect(nodes.eqLow).connect(nodes.eqMid).connect(nodes.eqHigh);
   nodes.eqHigh.connect(dry).connect(master);
   nodes.eqHigh.connect(delay).connect(nodes.dw).connect(master);
@@ -370,7 +389,7 @@ function applyFxMode(mode){
  refreshFx();
 }
 function wireUI(){
- $('start').addEventListener('click',()=>{if(!running){start();return}toggleModule('amp')});
+ $('start').addEventListener('click',()=>{if(!running){start();return}toggleAmpSource()});
  $('stopAudio')?.addEventListener('click',stop);
  $('presetPrev')?.addEventListener('click',()=>cyclePreset(-1));$('presetNext')?.addEventListener('click',()=>cyclePreset(1));
 $('savePreset')?.addEventListener('click',savePreset);
