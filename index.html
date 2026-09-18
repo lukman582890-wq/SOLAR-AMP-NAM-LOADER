@@ -6,15 +6,15 @@
 <meta name="theme-color" content="#080b0e">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=16">
+<link rel="stylesheet" href="styles.css?v=17">
 <title>Solar Amp — NAM Loader</title>
 <script>
-(()=>{const V='solar-ui-v16';if(localStorage.getItem(V)!=='1'){localStorage.setItem(V,'1');navigator.serviceWorker?.getRegistrations?.().then(rs=>Promise.all(rs.map(r=>r.unregister()))).then(()=>caches?.keys?.()).then(ks=>Promise.all((ks||[]).map(k=>caches.delete(k)))).then(()=>location.reload()).catch(()=>location.reload())}})();
+(()=>{const V='solar-ui-v17';if(localStorage.getItem(V)!=='1'){localStorage.setItem(V,'1');navigator.serviceWorker?.getRegistrations?.().then(rs=>Promise.all(rs.map(r=>r.unregister()))).then(()=>caches?.keys?.()).then(ks=>Promise.all((ks||[]).map(k=>caches.delete(k)))).then(()=>location.reload()).catch(()=>location.reload())}})();
 </script></head>
 <body>
 <main>
 <header class="topbar">
-  <div class="brand"><div class="sun">☼</div><div><strong>SOLAR AMP</strong><small>NAM LOADER</small></div></div>
+  <div class="brand"><div class="sun">A</div><div><strong>SOLAR AMP</strong><small>NAM LOADER</small></div></div>
   <div class="top-actions">
     <button id="install" class="icon-btn" hidden>INSTALL</button>
     <button class="icon-btn" type="button">⋮</button>
@@ -55,7 +55,7 @@
 
 <section id="ampModule" class="module amp-module">
   <div class="module-head">
-    <div class="module-title"><button id="start" class="power">⏻</button><div><h2>AMP</h2><small>NEURAL MODELING</small></div></div>
+    <div class="module-title"><button id="start" class="power">🖕</button><div><h2>AMP</h2><small>NEURAL MODELING</small></div></div>
     <div id="ampSelect" class="model-select"><button type="button">‹</button><strong id="ampModel">British 800</strong><button type="button">›</button></div>
     <button class="icon-btn" type="button">⋮</button>
   </div>
@@ -101,6 +101,6 @@
 
 <footer class="footer"><span>PLAY&nbsp;&nbsp;•&nbsp;&nbsp;EXPLORE&nbsp;&nbsp;•&nbsp;&nbsp;CREATE</span><span>SOLAR AMP&nbsp;&nbsp;v0.1.0</span></footer>
 </main>
-<script src="app.js?v=16"></script>
+<script src="app.js?v=17"></script>
 </body>
 </html>
