@@ -1,7 +1,7 @@
 // AudioWorkletGlobalScope does not guarantee the Window URL constructor.
 // @opendaw/nam-wasm's Emscripten loader uses new URL(..., import.meta.url)
-// to locate its WASM binary, so provide the minimal URL surface it needs
-// before dynamically importing the package.
+// to locate its WASM binary. AudioWorkletGlobalScope does not support
+// dynamic import(), so the package must be a static module dependency.
 if (typeof globalThis.URL === 'undefined') {
   globalThis.URL = class SolarWorkletURL {
     constructor(input, base) {
@@ -16,6 +16,8 @@ if (typeof globalThis.URL === 'undefined') {
     toString() { return this.href; }
   };
 }
+
+import { createNamModule, NamWasmModule } from 'https://cdn.jsdelivr.net/npm/@opendaw/nam-wasm@1.2.0/dist/index.js';
 
 class SolarNamProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -33,7 +35,6 @@ class SolarNamProcessor extends AudioWorkletProcessor {
 
   async init() {
     try {
-      const { createNamModule, NamWasmModule } = await import('https://cdn.jsdelivr.net/npm/@opendaw/nam-wasm@1.2.0/dist/index.js');
       const emscriptenModule = await createNamModule();
       this.nam = NamWasmModule.fromModule(emscriptenModule);
       this.nam.setSampleRate(sampleRate);
