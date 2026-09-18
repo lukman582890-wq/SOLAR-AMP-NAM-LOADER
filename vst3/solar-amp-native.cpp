@@ -13,7 +13,7 @@
 #include "IPlug_include_in_plug_src.h"
 #include "IPlugPaths.h"
 #include <fstream>
-#include <nlohmann/json.hpp>
+#include "json.hpp"
 // clang-format on
 #include "architecture.hpp"
 
