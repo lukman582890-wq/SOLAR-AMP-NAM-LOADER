@@ -263,7 +263,7 @@ void NeuralAmpModeler::OnReset()
   mReverbWritePos = 0;
   mODToneState = 0.0f;
   mEQLowState = 0.0f;
-  mEQHighState = 0.0f);
+  mEQHighState = 0.0f;
   mInputSender.Reset(sampleRate);
   mOutputSender.Reset(sampleRate);
   // If there is a model or IR loaded, they need to be checked for resampling.
