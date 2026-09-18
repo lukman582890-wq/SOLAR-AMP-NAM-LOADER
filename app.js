@@ -2,9 +2,9 @@ let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,ra
 const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const state={gain:25,bass:100,mid:50,treble:50,presence:50,master:100,drive:35,tone:50,level:72,mic:50,low:50,high:70,delay:28,reverb:22,eqLow:50,eqMid:50,eqHigh:50};
 const presets=[
- {name:'Default Preset',amp:'British 800',od:'Tube Screamer',cab:'6100_ZCB_57_API',fx:'Hall Reverb'},
- {name:'Clean Glass',amp:'American Clean',od:'Off',cab:'6100_ZCB_421_API',fx:'Plate Reverb'},
- {name:'Modern High Gain',amp:'Modern 5150',od:'Tight OD',cab:'6505_ZCB_57_API',fx:'Studio Hall'}
+ {name:'Default Preset',amp:'British 800',od:'Tube Screamer',cab:'6100_ZCB_57_API',fx:'Hall Reverb',fxMode:'REVERB'},
+ {name:'Clean Glass',amp:'American Clean',od:'Off',cab:'6100_ZCB_421_API',fx:'Plate Reverb',fxMode:'REVERB'},
+ {name:'Modern High Gain',amp:'Modern 5150',od:'Tight OD',cab:'6505_ZCB_57_API',fx:'Studio Hall',fxMode:'REVERB'}
 ];
 let presetIndex=0;let savedPresets=[];try{savedPresets=JSON.parse(localStorage.getItem('solarSavedPresets')||'[]');if(!Array.isArray(savedPresets))savedPresets=[]}catch{savedPresets=[]}let selectedAmp='British 800',selectedOd='Tube Screamer',selectedEq='Default',selectedCab='4x12 V30',selectedFx='Hall Reverb',selectedFxMode='DELAY';let setAmp,setOd,setEq,setCab,setFx,setFxMode;let knobSetters={};let ampBaseDrive=.52,odBaseDrive=.34,fxBaseDelay=.42,fxBaseReverb=.30;let irBuffer=null,irName='';let irFiles=new Map();let pendingIRFiles=[];let identityIRBuffer=null;const irPackV1=['6100_ZCB_57_API','6100_ZCB_57_NV','6100_ZCB_57OFF_API','6100_ZCB_57OFF_NV','6100_ZCB_201_API','6100_ZCB_201_NV','6100_ZCB_421_API','6100_ZCB_421_NV','6100_ZCB_906_API','6100_ZCB_906_NV','6505_ZCB_57_API','6505_ZCB_57_NV','6505_ZCB_57OFF_API','6505_ZCB_57OFF_NV','6505_ZCB_201_API','6505_ZCB_201_NV','6505_ZCB_421_API','6505_ZCB_421_NV','6505_ZCB_906_API','6505_ZCB_906_NV'];
 const $=id=>document.getElementById(id);
@@ -177,7 +177,7 @@ function tick(){
 function updatePreset(){
  const p=presets[presetIndex];setText($('presetName'),String(presetIndex+1).padStart(2,'0')+'  '+p.name);
  setAmp?.(p.amp);setOd?.(p.od);setEq?.(p.amp==='American Clean'?'Default':p.amp==='Modern 5150'?'V-Curve':'Mid Focus');
- setCab?.(p.cab);setFx?.(p.fx);
+ setCab?.(p.cab);setFx?.(p.fx);setFxMode?.(p.fxMode||'DELAY');
 }
 function cyclePreset(dir){presetIndex=(presetIndex+dir+presets.length)%presets.length;updatePreset()}
 function savePreset(){
@@ -334,7 +334,7 @@ document.querySelector('#irInput')?.addEventListener('change',async e=>{for(cons
 document.querySelectorAll('.module-bypass[data-module]').forEach(icon=>icon.addEventListener('click',()=>toggleModule(icon.dataset.module)));
  $('nam').addEventListener('change',async e=>{
   const f=e.target.files?.[0];if(!f)return;setText($('fileName'),f.name);
-  try{const raw=JSON.parse(await f.text());const a=String(raw.architecture??raw.model?.architecture??'').toUpperCase();setText($('modelStatus'),f.name+' • '+(a.includes('A2')?'NAM A2':a.includes('A1')?'NAM A1':'NAM architecture unknown')+' • parsed')}
+  try{const raw=JSON.parse(await f.text());const a=String(raw.architecture??raw.model?.architecture??raw.config?.architecture??'').toUpperCase();const isA2=a.includes('A2')||String(raw?.config?.version??'').toUpperCase().includes('A2');const isA1=a.includes('A1')||String(raw?.config?.version??'').toUpperCase().includes('A1');const kind=isA2?'NAM A2':isA1?'NAM A1':a.includes('WAVENET')?'NAM WaveNet':a.includes('LSTM')?'NAM LSTM':raw?.weights?'NAM model':'NAM architecture unknown';setText($('modelStatus'),f.name+' • '+kind+' • metadata parsed • Web Audio inference OFF')}
   catch{setText($('modelStatus'),'Invalid/unsupported NAM JSON')}
  });
  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvent=e;$('install').hidden=false});
