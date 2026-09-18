@@ -106,20 +106,40 @@ function updatePreset(){
  setText($('ampModel'),p.amp);setText($('odModel'),p.od);setText($('cabModel'),p.cab);setText($('fxModel'),p.fx);
 }
 function cyclePreset(dir){presetIndex=(presetIndex+dir+presets.length)%presets.length;updatePreset()}
-function wireModelSelector(selector,values){
+function wireModelSelector(selector,values,onChange){
  const box=document.querySelector(selector);if(!box)return;
  let i=0;const label=box.querySelector('strong'),buttons=box.querySelectorAll('button');
- function update(){label.textContent=values[i]}
+ function update(){if(label)label.textContent=values[i];onChange?.(values[i],i)}
  buttons[0]?.addEventListener('click',()=>{i=(i-1+values.length)%values.length;update()});
  buttons[1]?.addEventListener('click',()=>{i=(i+1)%values.length;update()});update();
+}
+function applyAmpModel(name){
+ if(!ctx)return;
+ const profiles={
+  'British 800':{drive:.52,tone:6100,bass:0,mid:3,treble:4,presence:2},
+  'American Clean':{drive:.16,tone:8200,bass:2,mid:-2,treble:3,presence:1},
+  'Modern 5150':{drive:.68,tone:5600,bass:3,mid:-4,treble:5,presence:4}
+ };
+ const p=profiles[name];if(!p)return;
+ nodes.drive.curve=curve(p.drive);
+ if(nodes.tone)nodes.tone.frequency.value=p.tone;
+ if(nodes.bass)nodes.bass.gain.value=p.bass;
+ if(nodes.mid)nodes.mid.gain.value=p.mid;
+ if(nodes.treble)nodes.treble.gain.value=p.treble;
+ if(nodes.presence)nodes.presence.gain.value=p.presence;
+}
+function applyOdModel(name){
+ if(!ctx||!nodes.drive)return;
+ const profiles={'Tube Screamer':.34,'Tight OD':.48,'Off':.08};
+ nodes.drive.curve=curve(profiles[name]??.08);
 }
 function wireUI(){
  $('start').addEventListener('click',()=>running?stop():start());
  $('presetPrev')?.addEventListener('click',()=>cyclePreset(-1));$('presetNext')?.addEventListener('click',()=>cyclePreset(1));
  document.querySelectorAll('.chain-node[data-target]').forEach(n=>n.addEventListener('click',()=>$(n.dataset.target)?.scrollIntoView({behavior:'smooth',block:'center'})));
  document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.fx-modes button').forEach(x=>x.classList.remove('selected'));b.classList.add('selected')}));
- wireModelSelector('#ampSelect',['British 800','American Clean','Modern 5150']);
- wireModelSelector('#odSelect',['Tube Screamer','Tight OD','Off']);
+ wireModelSelector('#ampSelect',['British 800','American Clean','Modern 5150'],applyAmpModel);
+ wireModelSelector('#odSelect',['Tube Screamer','Tight OD','Off'],applyOdModel);
  wireModelSelector('#eqSelect',['Default','V-Curve','Mid Focus']);
  wireModelSelector('#cabSelect',['4x12 V30','2x12 Blue','4x10 Green']);
  wireModelSelector('#fxSelect',['Hall Reverb','Plate Reverb','Room Reverb']);
