@@ -30,6 +30,8 @@ function refreshDrive(){
  if(!ctx)return;
  const ampOn=!moduleBypass.amp;
  const odOn=!moduleBypass.od&&selectedOd!=='Off';
+ // Bypass must be transparent: never disconnect the chain and never null the WaveShaper curve.
+ // A null WaveShaper curve is allowed by Web Audio, but the intended bypass is unity passthrough.
  if(nodes.ampDrive)nodes.ampDrive.curve=ampOn?curve(Math.max(.03,ampBaseDrive*(.35+state.gain/100*1.45))):null;
  if(nodes.odDrive)nodes.odDrive.curve=odOn?curve(Math.max(.01,odBaseDrive*(.25+state.drive/100*1.5))):null;
  if(nodes.odTone)nodes.odTone.frequency.value=odOn?(350+state.tone*72):20000;
@@ -115,7 +117,7 @@ async function start(){
   nodes.odDrive=ctx.createWaveShaper();nodes.odDrive.oversample='4x';
   nodes.odTone=ctx.createBiquadFilter();nodes.odTone.type='lowpass';nodes.odTone.frequency.value=3950;
   nodes.odLevel=ctx.createGain();nodes.odLevel.gain.value=.72;
-  nodes.ampDrive=ctx.createWaveShaper();nodes.ampDrive.oversample='4x';
+  nodes.ampDrive=ctx.createWaveShaper();nodes.ampDrive.oversample='4x';nodes.ampDrive.curve=null;
   nodes.ampTone=ctx.createBiquadFilter();nodes.ampTone.type='lowpass';nodes.ampTone.frequency.value=7000;nodes._ampToneFrequency=7000;
   nodes.bass=ctx.createBiquadFilter();nodes.bass.type='lowshelf';nodes.bass.frequency.value=140;
   nodes.mid=ctx.createBiquadFilter();nodes.mid.type='peaking';nodes.mid.frequency.value=900;nodes.mid.Q.value=.8;
