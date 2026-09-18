@@ -1,4 +1,5 @@
 name: Build SOLAR AMP VST3
+# WebView2 native GUI build
 
 on:
   workflow_dispatch:
