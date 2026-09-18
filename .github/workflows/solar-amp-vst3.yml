@@ -93,7 +93,7 @@ jobs:
           Copy-Item 'vst3\solar-amp-web.js' "$web/solar-amp-web.js" -Force
 
           $html = [IO.File]::ReadAllText("$web/index.html")
-          $html = [regex]::Replace($html, '<script>\(\(\)=>\{if\(!\(\'serviceWorker\' in navigator\).*?</script>', '', [Text.RegularExpressions.RegexOptions]::Singleline)
+          $html = [regex]::Replace($html, "<script>\\(\\(\\)=>\\{if\\(!\\('serviceWorker' in navigator\\).*?</script>", "", [Text.RegularExpressions.RegexOptions]::Singleline)
           $html = $html.Replace('<script src="app.js?v=61"></script>', '<script src="solar-amp-web.js"></script>')
           $html = $html.Replace('<link rel="manifest" href="manifest.webmanifest">','')
           [IO.File]::WriteAllText("$web/index.html",$html,(New-Object Text.UTF8Encoding($false)))
