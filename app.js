@@ -78,7 +78,7 @@ async function start(){
   nodes.high.connect(rev).connect(nodes.rw).connect(master);
   master.connect(outputAnalyser).connect(ctx.destination);
   Object.entries(state).forEach(([k,v])=>apply(k,v));applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);
-  running=true;setText($('engine'),'WEB AUDIO');setText($('rate'),ctx.sampleRate+' Hz');setText($('latency'),((ctx.baseLatency||0)*1000).toFixed(1)+' ms');$('start').classList.add('on');tick();
+  running=true;setText($('engine'),'WEB AUDIO');setText($('rate'),ctx.sampleRate+' Hz');setText($('latency'),((ctx.baseLatency||0)*1000).toFixed(1)+' ms');$('start').classList.add('on');$('start').textContent='👍';tick();
  }catch(err){
   setText($('engine'),'AUDIO ERROR');setText($('latency'),err?.name||'Permission denied');
   try{ctx?.close()}catch{}ctx=null;stream?.getTracks().forEach(t=>t.stop());stream=null;
@@ -86,7 +86,7 @@ async function start(){
 }
 function stop(){
  cancelAnimationFrame(raf);stream?.getTracks().forEach(t=>t.stop());stream=null;ctx?.close();ctx=null;running=false;
- $('start').classList.remove('on');setText($('engine'),'WEB AUDIO');setText($('rate'),'—');setText($('latency'),'—');$('in').value=0;$('out').value=0;setText($('note'),'—');setText($('hz'),'—');setText($('cents'),'PLAY A NOTE');
+ $('start').classList.remove('on');$('start').textContent='🖕';setText($('engine'),'WEB AUDIO');setText($('rate'),'—');setText($('latency'),'—');$('in').value=0;$('out').value=0;setText($('note'),'—');setText($('hz'),'—');setText($('cents'),'PLAY A NOTE');
 }
 function tick(){
  if(!running)return;
