@@ -240,7 +240,7 @@ async function start(){
   for(const file of pendingIRFiles.splice(0))await loadIRFile(file);
   refreshAllBypass();
   if(namModelJson)loadNamModel(namModelJson);
-  running=true;$('stopAudio')?.removeAttribute('hidden');setText($('engine'),'WEB AUDIO');setText($('rate'),ctx.sampleRate+' Hz');setText($('latency'),((ctx.baseLatency||0)*1000).toFixed(1)+' ms');$('start').classList.add('on');$('start').textContent='👍';tick();
+  running=true;$('stopAudio')?.removeAttribute('hidden');refreshStatusIndicators();setText($('engine'),'WEB AUDIO');setText($('rate'),ctx.sampleRate+' Hz');setText($('latency'),((ctx.baseLatency||0)*1000).toFixed(1)+' ms');$('start').classList.add('on');$('start').textContent='👍';tick();
  }catch(err){
   setText($('engine'),'AUDIO ERROR');setText($('latency'),err?.name||'Permission denied');
   try{ctx?.close()}catch{}ctx=null;stream?.getTracks().forEach(t=>t.stop());stream=null;
@@ -248,7 +248,7 @@ async function start(){
 }
 function stop(){
  cancelAnimationFrame(raf);stream?.getTracks().forEach(t=>t.stop());stream=null;ctx?.close();ctx=null;running=false;namNode=null;namReady=false;namModelLoaded=false;
- $('stopAudio')?.setAttribute('hidden','');$('start').classList.remove('on');$('start').classList.remove('bypassed');$('start').textContent='🖕';$('start').setAttribute('aria-pressed','false');setText($('engine'),'WEB AUDIO');setText($('rate'),'—');setText($('latency'),'—');$('in').value=0;$('out').value=0;setText($('note'),'—');setText($('hz'),'—');setText($('cents'),'PLAY A NOTE');
+ $('stopAudio')?.setAttribute('hidden','');$('start').classList.remove('on');$('start').classList.remove('bypassed');$('start').textContent='🖕';$('start').setAttribute('aria-pressed','false');setText($('engine'),'WEB AUDIO');refreshStatusIndicators();setText($('rate'),'—');setText($('latency'),'—');$('in').value=0;$('out').value=0;setText($('note'),'—');setText($('hz'),'—');setText($('cents'),'PLAY A NOTE');
 }
 function tick(){
  if(!running)return;
