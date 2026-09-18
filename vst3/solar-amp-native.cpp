@@ -22,6 +22,11 @@ using namespace iplug;
 
 const double kDCBlockerFrequency = 5.0;
 
+
+const std::string kCalibrateInputParamName = "CalibrateInput";
+const bool kDefaultCalibrateInput = false;
+const std::string kInputCalibrationLevelParamName = "InputCalibrationLevel";
+const double kDefaultInputCalibrationLevel = 12.0;
 NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
 : Plugin(info, MakeConfig(kNumParams, kNumPresets))
 {
@@ -47,7 +52,10 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
 
   mEditorInitFunc = [&]()
   {
-    LoadIndexHtml(__FILE__, GetBundleID());
+    WDL_String resourcePath;
+    BundleResourcePath(resourcePath);
+    resourcePath.Append("/web/index.html");
+    LoadFile(resourcePath.Get(), GetBundleID());
     EnableScroll(false);
   };
 }
@@ -196,27 +204,8 @@ int NeuralAmpModeler::UnserializeState(const IByteChunk& chunk, int startPos)
 void NeuralAmpModeler::OnUIOpen()
 {
   Plugin::OnUIOpen();
-
-  if (mNAMPath.GetLength())
-  {
-    SendControlMsgFromDelegate(kCtrlTagModelFileBrowser, kMsgTagLoadedModel, mNAMPath.GetLength(), mNAMPath.Get());
-    // If it's not loaded yet, then mark as failed.
-    // If it's yet to be loaded, then the completion handler will set us straight once it runs.
-    if (mModel == nullptr && mStagedModel == nullptr)
-      SendControlMsgFromDelegate(kCtrlTagModelFileBrowser, kMsgTagLoadFailed);
-  }
-
-  if (mIRPath.GetLength())
-  {
-    SendControlMsgFromDelegate(kCtrlTagIRFileBrowser, kMsgTagLoadedIR, mIRPath.GetLength(), mIRPath.Get());
-    if (mIR == nullptr && mStagedIR == nullptr)
-      SendControlMsgFromDelegate(kCtrlTagIRFileBrowser, kMsgTagLoadFailed);
-  }
-
-  if (mModel != nullptr)
-  {
-    _UpdateControlsFromModel();
-  }
+  nlohmann::json msg; msg["id"]="solar-host"; msg["sampleRate"]=GetSampleRate(); msg["latencyMs"]=GetLatency()>0 ? (GetLatency()*1000.0/GetSampleRate()) : 0.0;
+  const std::string text=msg.dump(); SendArbitraryMsgFromDelegate(-1, static_cast<int>(text.size()), text.c_str());
 }
 
 void NeuralAmpModeler::OnParamChange(int paramIdx)
@@ -260,15 +249,16 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
         std::ofstream f(path, std::ios::binary | std::ios::trunc);
         if (!f) throw std::runtime_error("Cannot create temporary NAM file.");
         f.write(reinterpret_cast<const char*>(pData), dataSize); f.close();
-        WDL_String modelPath(path.u8string().c_str());
+        WDL_String modelPath; modelPath.Set(path.u8string().c_str());
         const std::string err = _StageModel(modelPath);
         nlohmann::json msg; msg["id"]="solar-status"; msg["type"]=err.empty()?"model-loaded":"error";
         msg["message"]=err.empty()?"NAM MODEL • loaded into native DSP":std::string("NAM MODEL ERROR • ")+err;
-        SendJSONFromDelegate(msg);
+        const std::string text=msg.dump(); SendArbitraryMsgFromDelegate(-1, static_cast<int>(text.size()), text.c_str());
       }
       catch (const std::exception& e)
       {
-        nlohmann::json msg; msg["id"]="solar-status"; msg["type"]="error"; msg["message"]=std::string("NAM MODEL ERROR • ")+e.what(); SendJSONFromDelegate(msg);
+        nlohmann::json msg; msg["id"]="solar-status"; msg["type"]="error"; msg["message"]=std::string("NAM MODEL ERROR • ")+e.what();
+        const std::string text=msg.dump(); SendArbitraryMsgFromDelegate(-1, static_cast<int>(text.size()), text.c_str());
       }
       return true;
     }
@@ -283,14 +273,16 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
         std::ofstream f(path, std::ios::binary | std::ios::trunc);
         if (!f) throw std::runtime_error("Cannot create temporary IR file.");
         f.write(reinterpret_cast<const char*>(pData), dataSize); f.close();
-        WDL_String irPath(path.u8string().c_str());
+        WDL_String irPath; irPath.Set(path.u8string().c_str());
         const auto rc = _StageIR(irPath);
         nlohmann::json msg; msg["id"]="solar-status"; msg["type"]=rc==dsp::wav::LoadReturnCode::SUCCESS?"ir-loaded":"error";
-        msg["message"]=rc==dsp::wav::LoadReturnCode::SUCCESS?"IR • loaded into native DSP":"IR LOAD ERROR"; SendJSONFromDelegate(msg);
+        msg["message"]=rc==dsp::wav::LoadReturnCode::SUCCESS?"IR • loaded into native DSP":"IR LOAD ERROR";
+        const std::string text=msg.dump(); SendArbitraryMsgFromDelegate(-1, static_cast<int>(text.size()), text.c_str());
       }
       catch (const std::exception& e)
       {
-        nlohmann::json msg; msg["id"]="solar-status"; msg["type"]="error"; msg["message"]=std::string("IR ERROR • ")+e.what(); SendJSONFromDelegate(msg);
+        nlohmann::json msg; msg["id"]="solar-status"; msg["type"]="error"; msg["message"]=std::string("IR ERROR • ")+e.what();
+        const std::string text=msg.dump(); SendArbitraryMsgFromDelegate(-1, static_cast<int>(text.size()), text.c_str());
       }
       return true;
     }
@@ -497,7 +489,7 @@ std::string NeuralAmpModeler::_StageModel(const WDL_String& modelPath)
   }
   catch (std::runtime_error& e)
   {
-    SendControlMsgFromDelegate(kCtrlTagModelFileBrowser, kMsgTagLoadFailed);
+    SendControlMsgFromDelegate(kCtrlTagModelFileBrowser, kMsgTagLoadFailed, 0, nullptr);
 
     if (mStagedModel != nullptr)
     {
@@ -542,7 +534,7 @@ dsp::wav::LoadReturnCode NeuralAmpModeler::_StageIR(const WDL_String& irPath)
       mStagedIR = nullptr;
     }
     mIRPath = previousIRPath;
-    SendControlMsgFromDelegate(kCtrlTagIRFileBrowser, kMsgTagLoadFailed);
+    SendControlMsgFromDelegate(kCtrlTagIRFileBrowser, kMsgTagLoadFailed, 0, nullptr);
   }
 
   return wavState;
