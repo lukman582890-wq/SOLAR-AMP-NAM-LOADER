@@ -301,3 +301,6 @@ main{width:100%;max-width:1080px;margin-inline:auto}
 
 
 .ir-upload{display:inline-flex;align-items:center;justify-content:center;margin-top:8px;padding:7px 11px;border:1px solid #59635d;border-radius:6px;background:linear-gradient(#303832,#111612);font:700 9px Arial;letter-spacing:1px;color:#dce9df;cursor:pointer}.ir-upload input{display:none}.cab-copy{gap:7px}.cab-copy #irStatus{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+
+
+.ir-library{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;max-height:52px;overflow:auto}.ir-item{max-width:145px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 7px;border:1px solid #465149;border-radius:5px;background:#111715;color:#b9c9bf;font:8px Arial;cursor:pointer}.ir-item:hover{border-color:#77c792;color:#e8fff0}.ir-upload{user-select:none}
