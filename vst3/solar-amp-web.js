@@ -24,6 +24,7 @@
   const send=(m)=>{ try{ if(window.IPlugSendMsg) window.IPlugSendMsg(m); }catch(e){ console.error(e); } };
   const b64=buf=>{let s='',a=new Uint8Array(buf);for(let i=0;i<a.length;i+=0x8000)s+=String.fromCharCode(...a.subarray(i,i+0x8000));return btoa(s)};
   const byte64=v=>btoa(String.fromCharCode(v?1:0));
+  const u8b64=v=>btoa(String.fromCharCode(Number(v)&255));
   const sendParam=(idx,v)=>send({msg:'SPVFUI',paramIdx:idx,value:Math.max(0,Math.min(1,Number(v)))});
   const sendModule=(module,on)=>send({msg:'SAMFUI',msgTag:110,ctrlTag:{od:0,amp:1,eq:2,cab:3,fx:4}[module],data:byte64(on)});
   const setStatus=t=>{if($('modelStatus'))$('modelStatus').textContent=t};
@@ -142,7 +143,7 @@
     const i=Number.isInteger(idx)?idx:Math.max(0,fxModes.indexOf(mode));
     document.querySelectorAll('.fx-modes button').forEach(b=>b.classList.toggle('selected',b.textContent.trim()===mode));
     sendParam(24,i/4);
-    send({msg:'SAMFUI',msgTag:111,ctrlTag:-1,data:byte64(i)});
+    send({msg:'SAMFUI',msgTag:111,ctrlTag:-1,data:u8b64(i)});
   }
 
   async function loadBuiltInIR(name){
