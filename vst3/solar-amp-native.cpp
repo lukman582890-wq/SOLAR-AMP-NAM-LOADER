@@ -444,6 +444,11 @@ void NeuralAmpModeler::OnParamChange(int paramIdx)
     case kToneBass: mToneStack->SetParam("bass", GetParam(paramIdx)->Value()); break;
     case kToneMid: mToneStack->SetParam("middle", GetParam(paramIdx)->Value()); break;
     case kToneTreble: mToneStack->SetParam("treble", GetParam(paramIdx)->Value()); break;
+    case kODActive: mODActive = GetParam(paramIdx)->Bool(); break;
+    case kEQActive: mEQActive = GetParam(paramIdx)->Bool(); break;
+    case kIRToggle: mCabActive = GetParam(paramIdx)->Bool(); break;
+    case kFXActive: mFXActive = GetParam(paramIdx)->Bool(); break;
+    case kFXMode: mFXModeNative = GetParam(paramIdx)->Int(); break;
     case kSlim: _ApplySlimParamToLoadedNAMs(); break;
     default: break;
   }
