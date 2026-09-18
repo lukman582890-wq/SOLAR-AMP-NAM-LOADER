@@ -220,7 +220,7 @@ function toggleModule(name){
  if(!(name in moduleBypass))return;
  moduleBypass[name]=!moduleBypass[name];
  if(window.__SOLAR_VST3__){
-  const p={od:23,eq:7,cab:8,fx:24};
+  const p={od:22,eq:7,cab:8,fx:23};
   if(p[name]!==undefined)SPVFUI(p[name],moduleBypass[name]?0:1);
   if(name==='amp')SAMFUI(102,-1,byte64(moduleBypass.amp));
  }
@@ -230,7 +230,7 @@ function toggleModule(name){
 }
 function apply(k,v){
  if(window.__SOLAR_VST3__){
-  const map={gain:0,bass:2,mid:3,treble:4,presence:14,master:5,drive:15,tone:16,level:17,eqLow:18,eqMid:19,eqHigh:20,delay:21,reverb:22};
+  const map={gain:0,bass:2,mid:3,treble:4,presence:13,master:5,drive:14,tone:15,level:16,eqLow:17,eqMid:18,eqHigh:19,delay:20,reverb:21};
   if(map[k]!==undefined)SPVFUI(map[k],Number(v)/100); return;
  }
  if(!ctx)return;
