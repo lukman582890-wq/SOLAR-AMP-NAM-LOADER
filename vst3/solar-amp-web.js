@@ -47,21 +47,23 @@
 
   function toggleModule(name){
     bypass[name]=!bypass[name];
+    const active=!bypass[name];
     const icon=document.querySelector('.module-bypass[data-module="'+name+'"]');
-    if(icon){icon.textContent=bypass[name]?'🖕':'👍';icon.classList.toggle('bypassed',bypass[name]);icon.setAttribute('aria-pressed',String(!bypass[name]));}
+    if(icon){icon.textContent=bypass[name]?'🖕':'👍';icon.classList.toggle('bypassed',bypass[name]);icon.setAttribute('aria-pressed',String(active));}
+    // Native DSP gets an immediate dedicated module message. We also update the
+    // VST3 parameter so automation/state remain correct.
+    sendModule(name,active);
     if(name==='amp'){
-      // AMP bypass must also clear the native source selector; otherwise the
-      // native DSP can remain on NAM while the UI says AMP.
-      if(bypass.amp){
-        namActive=false;
-        send({msg:'SAMFUI',msgTag:103,ctrlTag:-1,data:byte64(false)});
-      }
+      // AMP bypass must also clear the NAM source selector. Re-enabling AMP does
+      // not implicitly select NAM; the explicit source switch controls that.
+      if(bypass.amp)namActive=false;
+      send({msg:'SAMFUI',msgTag:103,ctrlTag:-1,data:byte64(namActive)});
       send({msg:'SAMFUI',msgTag:102,ctrlTag:-1,data:byte64(bypass.amp)});
     }
-    else if(name==='eq')sendParam(7,bypass.eq?0:1);
-    else if(name==='cab')sendParam(8,bypass.cab?0:1);
-    else if(name==='od')sendParam(22,bypass.od?0:1);
-    else if(name==='fx')sendParam(23,bypass.fx?0:1);
+    else if(name==='eq')sendParam(7,active?1:0);
+    else if(name==='cab')sendParam(8,active?1:0);
+    else if(name==='od')sendParam(22,active?1:0);
+    else if(name==='fx')sendParam(23,active?1:0);
     refreshIndicators();
   }
 
@@ -140,6 +142,7 @@
     const i=Number.isInteger(idx)?idx:Math.max(0,fxModes.indexOf(mode));
     document.querySelectorAll('.fx-modes button').forEach(b=>b.classList.toggle('selected',b.textContent.trim()===mode));
     sendParam(24,i/4);
+    send({msg:'SAMFUI',msgTag:111,ctrlTag:-1,data:byte64(i)});
   }
 
   async function loadBuiltInIR(name){
