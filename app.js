@@ -22,7 +22,7 @@ function refreshNamBypass(){
 async function initNam(){
  if(!ctx?.audioWorklet)return false;
  try{
-  await ctx.audioWorklet.addModule('./nam-worklet.js?v=55');
+  await ctx.audioWorklet.addModule('./nam-worklet.js?v=56');
   namNode=new AudioWorkletNode(ctx,'solar-nam-processor',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1]});
   return await new Promise(resolve=>{
    let settled=false;
@@ -49,9 +49,15 @@ async function initNam(){
     if(d.type==='modelLoaded'){
      namModelLoaded=Boolean(d.success&&d.hasModel);
      namPending=false;
-     namSourceActive=namModelLoaded;
-     setNamAmpMode(namModelLoaded);
-     setText($('modelStatus'),namModelLoaded?'NAM LOADED • AMP/NAM switch ready • waiting for DSP':'NAM MODEL LOAD FAILED');
+     if(namModelLoaded&&namSourceRequested){
+      namSourceRequested=false;
+      setNamAmpMode(true);
+      setText($('modelStatus'),'NAM ACTIVE • '+(String($('fileName')?.textContent||'model')));
+     }else{
+      namSourceActive=false;
+      setNamAmpMode(false);
+      setText($('modelStatus'),namModelLoaded?'NAM LOADED • ready — use SWITCH to activate NAM':'NAM MODEL LOAD FAILED');
+     }
     }
     if(d.type==='processing'&&namModelLoaded){
      setText($('modelStatus'),'NAM ACTIVE • real WASM inference • '+d.blocks+' blocks');
