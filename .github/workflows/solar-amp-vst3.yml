@@ -30,14 +30,13 @@ jobs:
         shell: pwsh
         run: |
           $root = Resolve-Path nam-vst3-source
-          $files = Get-ChildItem $root -Recurse -File -Include *.cpp,*.h,*.rc,*.plist,*.json
+          $files = Get-ChildItem $root -Recurse -File -Include *.rc,*.plist,*.json
           foreach ($f in $files) {
             $s = [IO.File]::ReadAllText($f.FullName)
             $s = $s.Replace('Neural Amp Modeler','SOLAR AMP')
-            $s = $s.Replace('NeuralAmpModeler','SOLAR_AMP')
             [IO.File]::WriteAllText($f.FullName,$s,(New-Object Text.UTF8Encoding($false)))
           }
-          Write-Host 'Branding prepared.'
+          Write-Host 'Branding prepared without changing C++ identifiers or include paths.'
 
       - name: Get iPlug2 SDK
         shell: bash
