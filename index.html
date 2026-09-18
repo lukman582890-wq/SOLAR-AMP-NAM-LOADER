@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#080b0e">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="styles.css?v=6">
+<link rel="stylesheet" href="styles.css?v=7">
 <title>Solar Amp — NAM Loader</title>
 <script>
 (()=>{const V='solar-ui-v6';if(localStorage.getItem(V)!=='1'){localStorage.setItem(V,'1');navigator.serviceWorker?.getRegistrations?.().then(rs=>Promise.all(rs.map(r=>r.unregister()))).then(()=>caches?.keys?.()).then(ks=>Promise.all((ks||[]).map(k=>caches.delete(k)))).then(()=>location.reload()).catch(()=>location.reload())}})();
@@ -23,7 +23,7 @@
 <section class="presetbar">
   <button id="presetPrev" class="navbtn" type="button">‹</button>
   <div><small>PRESET</small><strong id="presetName">01&nbsp;&nbsp;Default Preset</strong></div>
-  <span class="presetdots">⌁</span>
+  <button id="presetNext" class="navbtn" type="button">›</button>
   <button class="icon-btn" type="button">⋮</button>
 </section>
 
@@ -64,7 +64,7 @@
 </section>
 
 <section class="rig">
-  <section class="module">
+  <section id="odModule" class="module">
     <div class="module-head compact"><div class="module-title"><div class="module-icon">↯</div><div><h2>OD</h2><small>DRIVE</small></div></div><div id="odSelect" class="model-select"><button type="button">‹</button><strong id="odModel">Tube Screamer</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
     <div class="knobs" id="od"></div>
   </section>
@@ -79,7 +79,7 @@
     <div class="cab-body"><div class="cabinet"><div class="cab-grille">4×12<br><small>V30</small></div></div><div class="cab-copy"><b>MIC PLACEMENT</b><span>SM57 • ON AXIS</span><div class="cab-rule"></div><small>Cab/IR visual panel — audio routing remains in the existing engine.</small></div></div>
   </section>
 
-  <section class="module">
+  <section id="fxModule" class="module">
     <div class="module-head compact"><div class="module-title"><div class="module-icon fx-icon">FX</div><div><h2>FX</h2><small>DELAY / REVERB</small></div></div><div id="fxSelect" class="model-select"><button type="button">‹</button><strong id="fxModel">Hall Reverb</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
     <div class="fx-body"><div class="knobs" id="fx"></div><div class="fx-modes"><button class="selected" type="button">DELAY</button><button type="button">REVERB</button><button type="button">CHORUS</button><button type="button">PHASER</button><button type="button">TREMOLO</button></div></div>
   </section>
@@ -99,6 +99,6 @@
 
 <footer class="footer"><span>PLAY&nbsp;&nbsp;•&nbsp;&nbsp;EXPLORE&nbsp;&nbsp;•&nbsp;&nbsp;CREATE</span><span>SOLAR AMP&nbsp;&nbsp;v0.1.0</span></footer>
 </main>
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
