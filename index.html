@@ -14,34 +14,34 @@
   <div class="brand"><div class="sun">☼</div><div><strong>SOLAR AMP</strong><small>NAM LOADER</small></div></div>
   <div class="top-actions">
     <button id="install" class="icon-btn" hidden>INSTALL</button>
-    <button class="icon-btn" type="button">⋮</button>
+    <button id="presetNext" class="icon-btn" type="button">⋮</button>
   </div>
 </header>
 
 <section class="presetbar">
-  <button class="navbtn" type="button">‹</button>
-  <div><small>PRESET</small><strong>01&nbsp;&nbsp;Default Preset</strong></div>
+  <button id="presetPrev" class="navbtn" type="button">‹</button>
+  <div><small>PRESET</small><strong id="presetName">01&nbsp;&nbsp;Default Preset</strong></div>
   <span class="presetdots">⌁</span>
   <button class="icon-btn" type="button">⋮</button>
 </section>
 
 <section class="signal-chain">
-  <div class="chain-node active"><b>♫</b><span>IN</span><i></i></div>
+  <div class="chain-node active" data-target="telemetry"><b>♫</b><span>IN</span><i></i></div>
   <div class="chain-line"></div>
-  <div class="chain-node"><b>∿</b><span>OD</span></div>
+  <div class="chain-node" data-target="odModule"><b>∿</b><span>OD</span></div>
   <div class="chain-line"></div>
-  <div class="chain-node active"><b>▣</b><span>AMP</span></div>
+  <div class="chain-node active" data-target="ampModule"><b>▣</b><span>AMP</span></div>
   <div class="chain-line"></div>
-  <div class="chain-node"><b>◎</b><span>CAB</span></div>
+  <div class="chain-node" data-target="cabModule"><b>◎</b><span>CAB</span></div>
   <div class="chain-line"></div>
-  <div class="chain-node"><b>▥</b><span>EQ</span></div>
+  <div class="chain-node" data-target="eqModule"><b>▥</b><span>EQ</span></div>
   <div class="chain-line"></div>
-  <div class="chain-node"><b>FX</b><span>FX</span></div>
+  <div class="chain-node" data-target="fxModule"><b>FX</b><span>FX</span></div>
   <div class="chain-line"></div>
-  <div class="chain-node"><b>▥</b><span>OUT</span><i></i></div>
+  <div class="chain-node" data-target="telemetry"><b>▥</b><span>OUT</span><i></i></div>
 </section>
 
-<section class="telemetry">
+<section id="telemetry" class="telemetry">
   <div><span>ENGINE</span><b id="engine">WEB AUDIO</b></div>
   <div><span>RATE</span><b id="rate">—</b></div>
   <div><span>LATENCY</span><b id="latency">—</b></div>
@@ -49,10 +49,10 @@
   <div class="meter-wrap"><label>IN <meter id="in" min="0" max="1" value="0"></meter></label><label>OUT <meter id="out" min="0" max="1" value="0"></meter></label></div>
 </section>
 
-<section class="module amp-module">
+<section id="ampModule" class="module amp-module">
   <div class="module-head">
     <div class="module-title"><button id="start" class="power">⏻</button><div><h2>AMP</h2><small>NEURAL MODELING</small></div></div>
-    <div class="model-select"><button type="button">‹</button><strong>British 800</strong><button type="button">›</button></div>
+    <div id="ampSelect" class="model-select"><button type="button">‹</button><strong id="ampModel">British 800</strong><button type="button">›</button></div>
     <button class="icon-btn" type="button">⋮</button>
   </div>
   <div class="amp-face">
@@ -63,22 +63,22 @@
 
 <section class="rig">
   <section class="module">
-    <div class="module-head compact"><div class="module-title"><div class="module-icon">↯</div><div><h2>OD</h2><small>DRIVE</small></div></div><div class="model-select"><button type="button">‹</button><strong>Tube Screamer</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
+    <div class="module-head compact"><div class="module-title"><div class="module-icon">↯</div><div><h2>OD</h2><small>DRIVE</small></div></div><div id="odSelect" class="model-select"><button type="button">‹</button><strong id="odModel">Tube Screamer</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
     <div class="knobs" id="od"></div>
   </section>
 
   <section class="module">
-    <div class="module-head compact"><div class="module-title"><div class="module-icon eq-icon">EQ</div><div><h2>EQ</h2><small>GRAPHIC / PARAMETRIC</small></div></div><div class="model-select"><button type="button">‹</button><strong>Default</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
+    <div class="module-head compact"><div class="module-title"><div class="module-icon eq-icon">EQ</div><div><h2>EQ</h2><small>GRAPHIC / PARAMETRIC</small></div></div><div id="eqSelect" class="model-select"><button type="button">‹</button><strong>Default</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
     <div class="eq-body"><div class="knobs" id="eq"></div><div class="eq-graph"><span>+12</span><div class="curve"></div><span>0</span><span>-12</span><footer>50&nbsp;&nbsp;&nbsp;&nbsp;200&nbsp;&nbsp;&nbsp;&nbsp;1k&nbsp;&nbsp;&nbsp;&nbsp;5k&nbsp;&nbsp;&nbsp;&nbsp;20k</footer></div></div>
   </section>
 
-  <section class="module cab-module">
-    <div class="module-head compact"><div class="module-title"><div class="module-icon cab-icon">▦</div><div><h2>CAB</h2><small>CABINET / IR</small></div></div><div class="model-select"><button type="button">‹</button><strong>4x12 V30</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
+  <section id="cabModule" class="module cab-module">
+    <div class="module-head compact"><div class="module-title"><div class="module-icon cab-icon">▦</div><div><h2>CAB</h2><small>CABINET / IR</small></div></div><div id="cabSelect" class="model-select"><button type="button">‹</button><strong id="cabModel">4x12 V30</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
     <div class="cab-body"><div class="cabinet"><div class="cab-grille">4×12<br><small>V30</small></div></div><div class="cab-copy"><b>MIC PLACEMENT</b><span>SM57 • ON AXIS</span><div class="cab-rule"></div><small>Cab/IR visual panel — audio routing remains in the existing engine.</small></div></div>
   </section>
 
   <section class="module">
-    <div class="module-head compact"><div class="module-title"><div class="module-icon fx-icon">FX</div><div><h2>FX</h2><small>DELAY / REVERB</small></div></div><div class="model-select"><button type="button">‹</button><strong>Hall Reverb</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
+    <div class="module-head compact"><div class="module-title"><div class="module-icon fx-icon">FX</div><div><h2>FX</h2><small>DELAY / REVERB</small></div></div><div id="fxSelect" class="model-select"><button type="button">‹</button><strong id="fxModel">Hall Reverb</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
     <div class="fx-body"><div class="knobs" id="fx"></div><div class="fx-modes"><button class="selected" type="button">DELAY</button><button type="button">REVERB</button><button type="button">CHORUS</button><button type="button">PHASER</button><button type="button">TREMOLO</button></div></div>
   </section>
 </section>
@@ -86,7 +86,7 @@
 <section class="bottom-grid">
   <section class="module model">
     <div class="bottom-title"><div><h2>NAM MODEL</h2><small>LOAD A LOCAL MODEL</small></div><span class="cloud">☁</span></div>
-    <div class="file-row"><label class="file-btn" for="nam">Pilih File</label><input id="nam" type="file" accept=".nam,.json"><span>Tidak ada file yang dipilih</span></div>
+    <div class="file-row"><label class="file-btn" for="nam">Pilih File</label><input id="nam" type="file" accept=".nam,.json"><span id="fileName">Tidak ada file yang dipilih</span></div>
     <p id="modelStatus">No model loaded</p>
   </section>
   <section class="module tone">
