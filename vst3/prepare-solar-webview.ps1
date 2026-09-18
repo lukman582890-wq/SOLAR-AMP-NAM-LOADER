@@ -30,8 +30,14 @@ $p=$p.Replace('<ProgramDatabaseFile>$(PDB_FILE)</ProgramDatabaseFile>','<Program
 
 $x=[IO.File]::ReadAllText($proj)
 $nl=[Environment]::NewLine
-$x=$x.Replace('    <ClInclude Include="..\NeuralAmpModeler.h" />','    <ClInclude Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebView.h" />'+$nl+'    <ClInclude Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebViewEditorDelegate.h" />'+$nl+'    <ClInclude Include="..\NeuralAmpModeler.h" />')
-$x=$x.Replace('    <ClCompile Include="..\NeuralAmpModeler.cpp" />','    <ClCompile Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebView.cpp" />'+$nl+'    <ClCompile Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebViewEditorDelegate.cpp" />'+$nl+'    <ClCompile Include="..\NeuralAmpModeler.cpp" />')
+$webItemGroup = $nl + '  <ItemGroup>' + $nl +
+'    <ClInclude Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebView.h" />' + $nl +
+'    <ClInclude Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebViewEditorDelegate.h" />' + $nl +
+'    <ClCompile Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebView.cpp" />' + $nl +
+'    <ClCompile Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebViewEditorDelegate.cpp" />' + $nl +
+'  </ItemGroup>' + $nl
+$x=$x.Replace('</Project>', $webItemGroup + '</Project>')
+try { [xml]$x | Out-Null } catch { throw "Generated VST3 project XML is invalid: $($_.Exception.Message)" }
 [IO.File]::WriteAllText($proj,$x,(New-Object Text.UTF8Encoding($false)))
 
 if(-not (Select-String -Path $src -Pattern 'mEditorInitFunc' -SimpleMatch -Quiet)){throw 'Native WebView source was not installed.'}
