@@ -1,4 +1,4 @@
-let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,raf,installEvent;const moduleBypass={od:false,eq:false,cab:false,fx:false};
+let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,raf,installEvent;const moduleBypass={amp:false,od:false,eq:false,cab:false,fx:false};
 const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const state={gain:25,bass:100,mid:50,treble:50,presence:50,master:100,drive:35,tone:50,level:72,mic:50,low:50,high:70,delay:28,reverb:22};
 const presets=[
