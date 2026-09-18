@@ -210,11 +210,20 @@ function refreshAllBypass(){refreshDrive();refreshAmpTone();refreshEq();refreshC
 function toggleModule(name){
  if(!(name in moduleBypass))return;
  moduleBypass[name]=!moduleBypass[name];
+ if(window.__SOLAR_VST3__){
+  const p={od:23,eq:7,cab:8,fx:24};
+  if(p[name]!==undefined)SPVFUI(p[name],moduleBypass[name]?0:1);
+  if(name==='amp')SAMFUI(102,-1,byte64(moduleBypass.amp));
+ }
  const icon=document.querySelector('.module-bypass[data-module="'+name+'"]');
  if(icon){icon.textContent=moduleBypass[name]?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass[name]);icon.setAttribute('aria-pressed',String(moduleBypass[name]));}
  refreshAllBypass();refreshNamBypass();refreshStatusIndicators();
 }
 function apply(k,v){
+ if(window.__SOLAR_VST3__){
+  const map={gain:0,bass:2,mid:3,treble:4,presence:14,master:5,drive:15,tone:16,level:17,eqLow:18,eqMid:19,eqHigh:20,delay:21,reverb:22};
+  if(map[k]!==undefined)SPVFUI(map[k],Number(v)/100); return;
+ }
  if(!ctx)return;
  if(k==='gain'||k==='drive'||k==='tone'||k==='level')refreshDrive();
  if(k==='bass'||k==='mid'||k==='treble'||k==='presence')refreshAmpTone();
@@ -252,6 +261,12 @@ function impulse(sec,decay){
 }
 async function start(){
  if(running)return;
+ if(window.__SOLAR_VST3__){
+  running=true;$('stopAudio')?.removeAttribute('hidden');$('start')?.classList.add('on');
+  setText($('engine'),'NATIVE NAM DSP');setText($('rate'),'HOST');setText($('latency'),'NATIVE');
+  setText($('modelStatus'),namModelJson?'NAM MODEL • READY':'NATIVE NAM • choose a .NAM model');
+  refreshAllBypass();refreshStatusIndicators();return;
+ }
  try{
   ctx=new AudioContext({latencyHint:'interactive'});
   if(ctx.state==='suspended')await ctx.resume();
@@ -318,6 +333,10 @@ async function start(){
  }
 }
 function stop(){
+ if(window.__SOLAR_VST3__){
+  running=false;$('stopAudio')?.setAttribute('hidden','');$('start')?.classList.remove('on');$('start')?.classList.remove('bypassed');
+  setText($('engine'),'NATIVE NAM DSP');setText($('rate'),'HOST');setText($('latency'),'NATIVE');refreshStatusIndicators();return;
+ }
  cancelAnimationFrame(raf);stream?.getTracks().forEach(t=>t.stop());stream=null;ctx?.close();ctx=null;running=false;namNode=null;namReady=false;namModelLoaded=false;namMode=false;namSourceActive=false;namSourceRequested=false;namPending=Boolean(namModelJson);namEnginePromise=null;namRequestMap.clear();
  $('stopAudio')?.setAttribute('hidden','');$('start').classList.remove('on');$('start').classList.remove('bypassed');$('start').textContent='🖕';$('start').setAttribute('aria-pressed','false');setText($('engine'),'WEB AUDIO');refreshStatusIndicators();setText($('rate'),'—');setText($('latency'),'—');$('in').value=0;$('out').value=0;setText($('note'),'—');setText($('hz'),'—');setText($('cents'),'PLAY A NOTE');
 }
@@ -496,6 +515,19 @@ document.querySelectorAll('.module-bypass[data-module]:not(#start)').forEach(ico
   $('sourceSwitch')?.addEventListener('click',()=>{toggleAmpSource().catch(err=>{setText($('modelStatus'),'NAM SWITCH ERROR • '+(err?.message||err));refreshStatusIndicators()})});
  $('nam').addEventListener('change',async e=>{
   const f=e.target.files?.[0];if(!f)return;setText($('fileName'),f.name);
+  if(window.__SOLAR_VST3__){
+   try{
+    const bytes=new Uint8Array(await f.arrayBuffer());
+    const rawText=new TextDecoder().decode(bytes).replace(/^\uFEFF/,'');
+    const raw=JSON.parse(rawText);
+    const a=String(raw.architecture??raw.model?.architecture??raw.config?.architecture??'').toUpperCase();
+    const kind=a.includes('A2')?'NAM A2':a.includes('A1')?'NAM A1':a.includes('WAVENET')?'NAM WaveNet':a.includes('LSTM')?'NAM LSTM':'NAM MODEL';
+    namModelJson=rawText;namPending=true;namSourceRequested=true;namReady=true;
+    SAMFUI(100,-1,btoa(String.fromCharCode(...bytes)));
+    setText($('modelStatus'),f.name+' • '+kind+' • sending to native DSP…');
+   }catch(err){namModelJson='';namPending=false;setText($('modelStatus'),'INVALID NAM • '+(err?.message||'JSON parse failed'))}
+   refreshStatusIndicators();return;
+  }
   try{const raw=JSON.parse((await f.text()).replace(/^\uFEFF/,''));const a=String(raw.architecture??raw.model?.architecture??raw.config?.architecture??'').toUpperCase();const isA2=a.includes('A2')||String(raw?.config?.version??'').toUpperCase().includes('A2');const isA1=a.includes('A1')||String(raw?.config?.version??'').toUpperCase().includes('A1');const kind=isA2?'NAM A2':isA1?'NAM A1':a.includes('WAVENET')?'NAM WaveNet':a.includes('LSTM')?'NAM LSTM':raw?.weights?'NAM model':'NAM architecture unknown';namModelJson=JSON.stringify(raw);namPending=true;namSourceActive=false;namSourceRequested=false;refreshStatusIndicators();setText($('modelStatus'),f.name+' • '+kind+' • '+(running?'reloading T3k NAM WASM…':'ready — Start Audio'));if(running){stop();await start()}}
   catch{namModelJson='';namPending=false;namSourceActive=false;refreshStatusIndicators();setText($('modelStatus'),'INVALID NAM • JSON parse failed')}
  });
