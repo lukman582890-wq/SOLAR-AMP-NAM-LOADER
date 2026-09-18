@@ -49,7 +49,15 @@
     bypass[name]=!bypass[name];
     const icon=document.querySelector('.module-bypass[data-module="'+name+'"]');
     if(icon){icon.textContent=bypass[name]?'🖕':'👍';icon.classList.toggle('bypassed',bypass[name]);icon.setAttribute('aria-pressed',String(!bypass[name]));}
-    if(name==='amp'){send({msg:'SAMFUI',msgTag:102,ctrlTag:-1,data:byte64(bypass.amp)});if(bypass.amp)namActive=false;}
+    if(name==='amp'){
+      // AMP bypass must also clear the native source selector; otherwise the
+      // native DSP can remain on NAM while the UI says AMP.
+      if(bypass.amp){
+        namActive=false;
+        send({msg:'SAMFUI',msgTag:103,ctrlTag:-1,data:byte64(false)});
+      }
+      send({msg:'SAMFUI',msgTag:102,ctrlTag:-1,data:byte64(bypass.amp)});
+    }
     else if(name==='eq')sendParam(7,bypass.eq?0:1);
     else if(name==='cab')sendParam(8,bypass.cab?0:1);
     else if(name==='od')sendParam(22,bypass.od?0:1);
@@ -136,8 +144,8 @@
 
   async function loadBuiltInIR(name){
     setStatus('CAB • loading '+name+'…');
-    send({msg:'SAMFUI',msgTag:103,ctrlTag:-2,data:btoa(name)});
-    // Native tag 103 is source-select, so use the dedicated IR tag 104.
+    // 104 is the dedicated native built-in IR selector. Do NOT send 103 here:
+    // 103 is the NAM/legacy AMP source selector and must never be used for CAB.
     send({msg:'SAMFUI',msgTag:104,ctrlTag:-1,data:btoa(name)});
     selectedCab=name;bypass.cab=false;sendParam(8,1);
     if($('cabModel'))$('cabModel').textContent=formatIR(name);
