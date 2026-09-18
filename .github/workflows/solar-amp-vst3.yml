@@ -1,5 +1,5 @@
 name: Build SOLAR AMP VST3
-# WebView2 native GUI build - verified flags
+# WebView2 native GUI build - force NO_IGRAPHICS
 
 on:
   workflow_dispatch:
