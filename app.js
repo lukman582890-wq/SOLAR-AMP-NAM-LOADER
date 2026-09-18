@@ -45,6 +45,9 @@ function refreshAmpTone(){
  if(nodes.mid)nodes.mid.gain.value=(state.mid-50)*.24*q;
  if(nodes.treble)nodes.treble.gain.value=(state.treble-50)*.24*q;
  if(nodes.presence)nodes.presence.gain.value=(state.presence-50)*.22*q;
+ // AMP bypass must pass the signal through the complete AMP section transparently.
+ if(nodes.low)nodes.low.frequency.value=moduleBypass.amp?1:40+state.low*1.2;
+ if(nodes.high)nodes.high.frequency.value=moduleBypass.amp?20000:4000+state.high*60;
 }
 function refreshEq(){
  if(!ctx)return;
