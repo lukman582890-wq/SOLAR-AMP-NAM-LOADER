@@ -6,7 +6,7 @@ const presets=[
  {name:'Clean Glass',amp:'American Clean',od:'Off',cab:'2x12 Blue',fx:'Plate Reverb'},
  {name:'Modern High Gain',amp:'Modern 5150',od:'Tight OD',cab:'4x12 V30',fx:'Studio Hall'}
 ];
-let presetIndex=0;let savedPresets=[];try{savedPresets=JSON.parse(localStorage.getItem('solarSavedPresets')||'[]');if(!Array.isArray(savedPresets))savedPresets=[]}catch{savedPresets=[]}let selectedAmp='British 800',selectedOd='Tube Screamer',selectedEq='Default',selectedCab='4x12 V30',selectedFx='Hall Reverb',selectedFxMode='DELAY';let setAmp,setOd,setEq,setCab,setFx;let knobSetters={};let ampBaseDrive=.52,odBaseDrive=.34,fxBaseDelay=.42,fxBaseReverb=.30;let irBuffer=null,irName='';const irPackV1=['6100_ZCB_57_API','6100_ZCB_57_NV','6100_ZCB_57OFF_API','6100_ZCB_57OFF_NV','6100_ZCB_201_API','6100_ZCB_201_NV','6100_ZCB_421_API','6100_ZCB_421_NV','6100_ZCB_906_API','6100_ZCB_906_NV','6505_ZCB_57_API','6505_ZCB_57_NV','6505_ZCB_57OFF_API','6505_ZCB_57OFF_NV','6505_ZCB_201_API','6505_ZCB_201_NV','6505_ZCB_421_API','6505_ZCB_421_NV','6505_ZCB_906_API','6505_ZCB_906_NV'];
+let presetIndex=0;let savedPresets=[];try{savedPresets=JSON.parse(localStorage.getItem('solarSavedPresets')||'[]');if(!Array.isArray(savedPresets))savedPresets=[]}catch{savedPresets=[]}let selectedAmp='British 800',selectedOd='Tube Screamer',selectedEq='Default',selectedCab='4x12 V30',selectedFx='Hall Reverb',selectedFxMode='DELAY';let setAmp,setOd,setEq,setCab,setFx;let knobSetters={};let ampBaseDrive=.52,odBaseDrive=.34,fxBaseDelay=.42,fxBaseReverb=.30;let irBuffer=null,irName='';let irFiles=new Map();const irPackV1=['6100_ZCB_57_API','6100_ZCB_57_NV','6100_ZCB_57OFF_API','6100_ZCB_57OFF_NV','6100_ZCB_201_API','6100_ZCB_201_NV','6100_ZCB_421_API','6100_ZCB_421_NV','6100_ZCB_906_API','6100_ZCB_906_NV','6505_ZCB_57_API','6505_ZCB_57_NV','6505_ZCB_57OFF_API','6505_ZCB_57OFF_NV','6505_ZCB_201_API','6505_ZCB_201_NV','6505_ZCB_421_API','6505_ZCB_421_NV','6505_ZCB_906_API','6505_ZCB_906_NV'];
 const $=id=>document.getElementById(id);
 function curve(k){const c=new Float32Array(44100);for(let i=0;i<c.length;i++){const x=i*2/c.length-1;c[i]=Math.tanh(k*x*4)/Math.tanh(k*4)}return c}
 function setText(el,t){if(el)el.textContent=t}
@@ -39,7 +39,8 @@ function refreshEq(){
 }
 function refreshCab(){
  if(!ctx)return;
- if(nodes.ir){nodes.ir.buffer=moduleBypass.cab?null:irBuffer;}
+ if(nodes.ir){nodes.ir.buffer=irBuffer||nodes.ir.buffer;}
+
 
  const cut=moduleBypass.cab?20000:({ '4x12 V30':7200,'2x12 Blue':6500,'4x10 Green':8000}[selectedCab]||7200);
  if(nodes.cab)nodes.cab.frequency.value=cut;
@@ -111,7 +112,7 @@ async function start(){
   nodes.high=ctx.createBiquadFilter();nodes.high.type='lowpass';nodes.high.frequency.value=7600;
   nodes.cab=ctx.createBiquadFilter();nodes.cab.type='lowpass';nodes.cab.frequency.value=7200;
   nodes.cabPresence=ctx.createBiquadFilter();nodes.cabPresence.type='peaking';nodes.cabPresence.frequency.value=2800;nodes.cabPresence.Q.value=.8;
-  nodes.ir=ctx.createConvolver();nodes.ir.normalize=true;
+  nodes.ir=ctx.createConvolver();nodes.ir.normalize=true;const identity=ctx.createBuffer(1,1,ctx.sampleRate);identity.getChannelData(0)[0]=1;nodes.ir.buffer=identity;
   const delay=ctx.createDelay(1.2);delay.delayTime.value=.42;nodes.dw=ctx.createGain();
   const rev=ctx.createConvolver();rev.buffer=impulse(1.6,2.1);nodes.rw=ctx.createGain();
   nodes.chorusDelay=ctx.createDelay(.08);nodes.chorusDelay.delayTime.value=.025;nodes.chorusGain=ctx.createGain();
@@ -249,9 +250,13 @@ function applyCabModel(name){
  const p=profiles[name]||profiles['4x12 V30'];
  if(ctx)refreshCab();
 }
+function renderIRLibrary(){
+ const box=$('irLibrary');if(!box)return;box.innerHTML='';
+ irFiles.forEach((v,name)=>{const b=document.createElement('button');b.type='button';b.className='ir-item';b.textContent=name;b.title=name;b.addEventListener('click',()=>{irBuffer=v.buffer;irName=name;setText($('cabModel'),name.replace(/\.(wav|aiff?|flac)$/i,''));setText($('irStatus'),'CUSTOM • '+name);refreshCab()});box.appendChild(b)});
+}
 async function loadIRFile(file){
  if(!file||!ctx)return;
- try{const buf=await file.arrayBuffer();const decoded=await ctx.decodeAudioData(buf.slice(0));irBuffer=decoded;irName=file.name;setText($('cabModel'),file.name.replace(/\.(wav|aiff?|flac)$/i,''));setText($('irStatus'),'CUSTOM • '+file.name);refreshCab();saveIRLocal(file.name,decoded);}
+ try{const buf=await file.arrayBuffer();const decoded=await ctx.decodeAudioData(buf.slice(0));irBuffer=decoded;irName=file.name;irFiles.set(file.name,{buffer:decoded});renderIRLibrary();setText($('cabModel'),file.name.replace(/\.(wav|aiff?|flac)$/i,''));setText($('irStatus'),'CUSTOM • '+file.name);refreshCab();}
  catch(e){setText($('irStatus'),'IR LOAD ERROR');console.error(e)}
 }
 function saveIRLocal(name,buffer){try{const data=buffer.getChannelData(0);const arr=new Float32Array(data);localStorage.setItem('solarLastIRName',name);localStorage.setItem('solarLastIR',btoa(String.fromCharCode(...new Uint8Array(arr.buffer))));}catch{}}
@@ -276,7 +281,7 @@ $('presetMenu')?.addEventListener('click',manageSavedPresets);
  setEq=wireModelSelector('#eqSelect',['Default','V-Curve','Mid Focus'],applyEqModel);
  wireEqGraph();
  setCab=wireModelSelector('#cabSelect',irPackV1,applyCabModel);
-document.querySelector('#irInput')?.addEventListener('change',e=>[...(e.target.files||[])].forEach(loadIRFile));
+document.querySelector('#irInput')?.addEventListener('change',async e=>{for(const f of [...(e.target.files||[])])await loadIRFile(f)});renderIRLibrary();
  setFx=wireModelSelector('#fxSelect',['Hall Reverb','Plate Reverb','Room Reverb','Studio Hall'],applyFxModel);
  document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>applyFxMode(b.textContent.trim())));
 document.querySelectorAll('.module-bypass[data-module]').forEach(icon=>icon.addEventListener('click',()=>toggleModule(icon.dataset.module)));
