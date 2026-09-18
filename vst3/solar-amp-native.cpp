@@ -13,7 +13,6 @@
 #include "IPlug_include_in_plug_src.h"
 #include "IPlugPaths.h"
 #include <fstream>
-#include "json.hpp"
 // clang-format on
 #include "architecture.hpp"
 
@@ -206,22 +205,17 @@ int NeuralAmpModeler::UnserializeState(const IByteChunk& chunk, int startPos)
 void NeuralAmpModeler::OnUIOpen()
 {
   Plugin::OnUIOpen();
-  nlohmann::json msg; msg["id"]="solar-host"; msg["sampleRate"]=GetSampleRate(); msg["latencyMs"]=GetLatency()>0 ? (GetLatency()*1000.0/GetSampleRate()) : 0.0;
-  const std::string text=msg.dump(); SendArbitraryMsgFromDelegate(-1, static_cast<int>(text.size()), text.c_str());
 }
 
 void NeuralAmpModeler::OnParamChange(int paramIdx)
 {
   switch (paramIdx)
   {
-    // Changes to the input gain
     case kCalibrateInput:
     case kInputCalibrationLevel:
     case kInputLevel: _SetInputGain(); break;
-    // Changes to the output gain
     case kOutputLevel:
     case kOutputMode: _SetOutputGain(); break;
-    // Tone stack:
     case kToneBass: mToneStack->SetParam("bass", GetParam(paramIdx)->Value()); break;
     case kToneMid: mToneStack->SetParam("middle", GetParam(paramIdx)->Value()); break;
     case kToneTreble: mToneStack->SetParam("treble", GetParam(paramIdx)->Value()); break;
@@ -236,6 +230,18 @@ void NeuralAmpModeler::OnParamChangeUI(int paramIdx, EParamSource source)
 
 bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pData)
 {
+  auto setStatus = [&](std::string status)
+  {
+    for (size_t i = 0; i < status.size(); ++i)
+    {
+      if (status[i] == '\\') { status.insert(i, "\\"); ++i; }
+      else if (status[i] == '\'') { status.insert(i, "\\"); ++i; }
+      else if (status[i] == '\n') { status.replace(i, 1, "\\n"); }
+    }
+    const std::string js = "if(window.SOLARSetStatus)window.SOLARSetStatus('" + status + "');";
+    EvaluateJavaScript(js.c_str());
+  };
+
   switch (msgTag)
   {
     case kMsgTagClearModel: mShouldRemoveModel = true; return true;
@@ -244,23 +250,22 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
     {
       try
       {
-        if (!pData || dataSize <= 0 || dataSize > 64 * 1024 * 1024) throw std::runtime_error("Invalid NAM payload.");
+        if (!pData || dataSize <= 0 || dataSize > 64 * 1024 * 1024)
+          throw std::runtime_error("Invalid NAM payload.");
         auto dir = std::filesystem::temp_directory_path() / "SOLAR AMP Models";
         std::filesystem::create_directories(dir);
         auto path = dir / ("model_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ".nam");
         std::ofstream f(path, std::ios::binary | std::ios::trunc);
         if (!f) throw std::runtime_error("Cannot create temporary NAM file.");
-        f.write(reinterpret_cast<const char*>(pData), dataSize); f.close();
+        f.write(reinterpret_cast<const char*>(pData), dataSize);
+        f.close();
         WDL_String modelPath(path.string().c_str());
         const std::string err = _StageModel(modelPath);
-        nlohmann::json msg; msg["id"]="solar-status"; msg["type"]=err.empty()?"model-loaded":"error";
-        msg["message"]=err.empty()?"NAM MODEL • loaded into native DSP":std::string("NAM MODEL ERROR • ")+err;
-        const std::string text=msg.dump(); SendArbitraryMsgFromDelegate(-1, static_cast<int>(text.size()), text.c_str());
+        setStatus(err.empty() ? "NAM MODEL - loaded into native DSP" : std::string("NAM MODEL ERROR - ") + err);
       }
       catch (const std::exception& e)
       {
-        nlohmann::json msg; msg["id"]="solar-status"; msg["type"]="error"; msg["message"]=std::string("NAM MODEL ERROR • ")+e.what();
-        const std::string text=msg.dump(); SendArbitraryMsgFromDelegate(-1, static_cast<int>(text.size()), text.c_str());
+        setStatus(std::string("NAM MODEL ERROR - ") + e.what());
       }
       return true;
     }
@@ -268,28 +273,28 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
     {
       try
       {
-        if (!pData || dataSize <= 0 || dataSize > 64 * 1024 * 1024) throw std::runtime_error("Invalid IR payload.");
+        if (!pData || dataSize <= 0 || dataSize > 64 * 1024 * 1024)
+          throw std::runtime_error("Invalid IR payload.");
         auto dir = std::filesystem::temp_directory_path() / "SOLAR AMP IR";
         std::filesystem::create_directories(dir);
         auto path = dir / ("ir_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ".wav");
         std::ofstream f(path, std::ios::binary | std::ios::trunc);
         if (!f) throw std::runtime_error("Cannot create temporary IR file.");
-        f.write(reinterpret_cast<const char*>(pData), dataSize); f.close();
+        f.write(reinterpret_cast<const char*>(pData), dataSize);
+        f.close();
         WDL_String irPath(path.string().c_str());
         const auto rc = _StageIR(irPath);
-        nlohmann::json msg; msg["id"]="solar-status"; msg["type"]=rc==dsp::wav::LoadReturnCode::SUCCESS?"ir-loaded":"error";
-        msg["message"]=rc==dsp::wav::LoadReturnCode::SUCCESS?"IR • loaded into native DSP":"IR LOAD ERROR";
-        const std::string text=msg.dump(); SendArbitraryMsgFromDelegate(-1, static_cast<int>(text.size()), text.c_str());
+        setStatus(rc == dsp::wav::LoadReturnCode::SUCCESS ? "IR - loaded into native DSP" : "IR LOAD ERROR");
       }
       catch (const std::exception& e)
       {
-        nlohmann::json msg; msg["id"]="solar-status"; msg["type"]="error"; msg["message"]=std::string("IR ERROR • ")+e.what();
-        const std::string text=msg.dump(); SendArbitraryMsgFromDelegate(-1, static_cast<int>(text.size()), text.c_str());
+        setStatus(std::string("IR ERROR - ") + e.what());
       }
       return true;
     }
     case 102:
-      mNativeAmpBypass = dataSize > 0 && pData && (*reinterpret_cast<const uint8_t*>(pData) != 0); return true;
+      mNativeAmpBypass = dataSize > 0 && pData && (*reinterpret_cast<const uint8_t*>(pData) != 0);
+      return true;
     default: return false;
   }
 }
