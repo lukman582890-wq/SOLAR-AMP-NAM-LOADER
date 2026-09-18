@@ -116,7 +116,7 @@ jobs:
           $bundle = 'vst3-dist\SOLAR AMP.vst3\Contents\x86_64-win'
           New-Item -ItemType Directory -Force $bundle | Out-Null
           Copy-Item $bin.FullName (Join-Path $bundle 'SOLARAMP.vst3') -Force
-          $resources = 'vst3-dist\SOLAR AMP.vst3\Contents\Resources\web'
+          $resources = 'vst3-dist\SOLAR AMP.vst3\Contents\Resources\SOLAR AMP\web'
           New-Item -ItemType Directory -Force $resources | Out-Null
           Copy-Item 'nam-vst3-source\NeuralAmpModeler\Resources\web\*' $resources -Recurse -Force
           Write-Host "VST3 binary: $($bin.FullName)"
