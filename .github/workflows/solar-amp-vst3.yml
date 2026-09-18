@@ -14,12 +14,11 @@ jobs:
   build-windows:
     name: Build SOLAR AMP VST3 (Windows x64)
     runs-on: windows-latest
-
     steps:
       - name: Checkout SOLAR AMP
         uses: actions/checkout@v4
 
-      - name: Checkout NAM DSP/VST3 foundation
+      - name: Checkout NAM foundation
         shell: bash
         run: |
           git clone --recursive https://github.com/sdatkinson/NeuralAmpModelerPlugin.git nam-vst3-source
@@ -27,9 +26,18 @@ jobs:
           git checkout 16be869746b8915885c7a35bafdcc0061faeb50e
           git submodule update --init --recursive
 
-      - name: Apply SOLAR AMP branding
+      - name: Prepare SOLAR AMP branding safely
         shell: pwsh
-        run: .\vst3\solar-amp-build.ps1 -SourceDir nam-vst3-source
+        run: |
+          $root = Resolve-Path nam-vst3-source
+          $files = Get-ChildItem $root -Recurse -File -Include *.cpp,*.h,*.rc,*.plist,*.json
+          foreach ($f in $files) {
+            $s = [IO.File]::ReadAllText($f.FullName)
+            $s = $s.Replace('Neural Amp Modeler','SOLAR AMP')
+            $s = $s.Replace('NeuralAmpModeler','SOLAR_AMP')
+            [IO.File]::WriteAllText($f.FullName,$s,(New-Object Text.UTF8Encoding($false)))
+          }
+          Write-Host 'Branding prepared.'
 
       - name: Get iPlug2 SDK
         shell: bash
@@ -48,39 +56,37 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Build SOLAR AMP VST3
+      - name: Build VST3
         shell: pwsh
         working-directory: nam-vst3-source
         run: |
           Set-Location NeuralAmpModeler/scripts
           .\makedist-win.bat full zip
 
-      - name: Locate and rename VST3
+      - name: Locate VST3
         shell: pwsh
         run: |
-          $vst3 = Get-ChildItem -Path nam-vst3-source -Recurse -Filter "*.vst3" -Directory |
-            Where-Object { $_.FullName -notmatch "\\iPlug2\\" } |
+          $vst3 = Get-ChildItem nam-vst3-source -Recurse -Filter '*.vst3' -Directory |
+            Where-Object { $_.FullName -notmatch '\\iPlug2\\' } |
             Select-Object -First 1
-          if (-not $vst3) { throw "SOLAR AMP VST3 was not produced." }
-          New-Item -ItemType Directory -Force -Path vst3-dist | Out-Null
-          Copy-Item -Recurse $vst3.FullName "vst3-dist\SOLAR AMP.vst3"
-          Write-Host "Built: $($vst3.FullName)"
+          if (-not $vst3) { throw 'No VST3 bundle produced.' }
+          New-Item -ItemType Directory -Force vst3-dist | Out-Null
+          Copy-Item -Recurse $vst3.FullName 'vst3-dist\SOLAR AMP.vst3'
+          Write-Host "VST3: $($vst3.FullName)"
 
-      - name: Validate with pluginval
+      - name: Validate
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://github.com/Tracktion/pluginval/releases/download/latest_release/pluginval_Windows.zip" -OutFile pluginval.zip
+          Invoke-WebRequest 'https://github.com/Tracktion/pluginval/releases/download/latest_release/pluginval_Windows.zip' -OutFile pluginval.zip
           Expand-Archive pluginval.zip -DestinationPath pluginval -Force
-          $vst3 = Resolve-Path "vst3-dist\SOLAR AMP.vst3"
-          & ".\pluginval\pluginval.exe" --skip-gui-tests --validate-in-process --validate "$vst3"
+          & '.\pluginval\pluginval.exe' --skip-gui-tests --validate-in-process --validate (Resolve-Path 'vst3-dist\SOLAR AMP.vst3')
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Package
         shell: pwsh
-        run: |
-          Compress-Archive -Path "vst3-dist\SOLAR AMP.vst3" -DestinationPath "SOLAR-AMP-VST3-Windows-x64.zip" -Force
+        run: Compress-Archive -Path 'vst3-dist\SOLAR AMP.vst3' -DestinationPath 'SOLAR-AMP-VST3-Windows-x64.zip' -Force
 
-      - name: Upload artifact
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: SOLAR-AMP-VST3-Windows-x64
