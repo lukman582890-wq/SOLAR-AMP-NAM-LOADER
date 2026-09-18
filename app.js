@@ -22,76 +22,66 @@ function refreshNamBypass(){
  nodes.namWet.gain.value=active?1:0;
  nodes.namDry.gain.value=active?0:1;
 }
-async function loadT3kModule(){
- if(window.__solarT3kModulePromise)return window.__solarT3kModulePromise;
- window.__solarT3kModulePromise=new Promise((resolve,reject)=>{
-  if(window.Module?.ccall){
-   resolve(window.Module);return;
-  }
-  const previous=window.Module?.onRuntimeInitialized;
-  window.Module=window.Module||{};
-  const timer=setTimeout(()=>reject(new Error('T3k WASM runtime timeout')),20000);
-  window.Module.onRuntimeInitialized=()=>{
-   try{previous?.()}catch{}
-   clearTimeout(timer);
-   resolve(window.Module);
-  };
-  const script=document.createElement('script');
-  script.src='./t3k-wasm-module.js?v=59';
-  script.async=true;
-  script.onerror=()=>{clearTimeout(timer);reject(new Error('Failed to load t3k-wasm-module.js'))};
-  document.head.appendChild(script);
+let namRequestSeq=1,namRequestMap=new Map(),namEnginePromise=null;
+function namRequest(message,transfer=[]){
+ if(!namNode)return Promise.reject(new Error('NAM AudioWorklet node is not initialized'));
+ const requestId=namRequestSeq++;
+ return new Promise((resolve,reject)=>{
+  namRequestMap.set(requestId,{resolve,reject});
+  try{namNode.port.postMessage({...message,requestId},transfer)}catch(error){namRequestMap.delete(requestId);reject(error)}
  });
- return window.__solarT3kModulePromise;
 }
-async function initNamWithModel(json){
- try{
-  const module=await loadT3kModule();
-  if(!module?._malloc||!module?.stringToUTF8||!module?.ccall)throw new Error('T3k WASM module missing required functions');
-  let textModel=String(json||'').trim();
-  if(!textModel){
-   const r=await fetch('./nam-default.nam',{cache:'no-store'});
-   if(!r.ok)throw new Error('Default NAM model unavailable: HTTP '+r.status);
-   textModel=await r.text();
-  }
-  const bytes=new TextEncoder().encode(textModel);
-  const byteLength=bytes.length+1;
-  const ptr=module._malloc(byteLength);
-  if(!ptr)throw new Error('WASM allocation failed');
-  let callbackTimer;
-  const audioReady=new Promise((resolve,reject)=>{
-   const previous=window.wasmAudioWorkletCreated;
-   callbackTimer=setTimeout(()=>reject(new Error('T3k AudioWorklet creation timeout')),20000);
-   window.wasmAudioWorkletCreated=(node,audioContext)=>{
-    try{previous?.(node,audioContext)}catch{}
-    clearTimeout(callbackTimer);
-    resolve({node,audioContext});
-   };
-  });
+async function initNamEngine(){
+ if(namNode&&namReady)return true;
+ if(!ctx)throw new Error('AudioContext is not initialized');
+ if(namEnginePromise)return namEnginePromise;
+ namEnginePromise=(async()=>{
   try{
-   module.stringToUTF8(textModel,ptr,byteLength);
-   const dspPromise=module.ccall('setDsp',null,['number','number'],[ptr,0],{async:true});
-   const result=await Promise.all([dspPromise,audioReady]);
-   const created=result[1];
-   ctx=created.audioContext;
-   namNode=created.node;
+   setText($('modelStatus'),'NAM ENGINE • loading official WASM…');
+   await ctx.audioWorklet.addModule('./nam-worklet.js?v=60');
+   const response=await fetch('./nam-engine.wasm?v=60',{cache:'no-store'});
+   if(!response.ok)throw new Error('nam-engine.wasm HTTP '+response.status);
+   const wasmBytes=await response.arrayBuffer();
+   namNode=new AudioWorkletNode(ctx,'nam-processor',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1],channelCount:1,channelCountMode:'explicit'});
+   namNode.port.onmessage=e=>{
+    const d=e.data||{};
+    if(d.type!=='response')return;
+    const pending=namRequestMap.get(d.requestId);if(!pending)return;
+    namRequestMap.delete(d.requestId);
+    if(d.ok)pending.resolve(d.modelInfo);else pending.reject(new Error(d.error||'NAM request failed'));
+   };
+   await namRequest({type:'init',wasmBytes},[wasmBytes]);
    namReady=true;
-   namModelLoaded=true;
-   namMode=false;
-   namSourceActive=false;
-   namSourceRequested=false;
+   setText($('engine'),'NAM WASM READY');
    return true;
-  }finally{
-   module._free(ptr);
-   try{delete window.wasmAudioWorkletCreated}catch{}
-  }
- }catch(err){
-  namNode=null;namReady=false;namModelLoaded=false;namMode=false;namSourceActive=false;
-  const msg=String(err?.stack||err?.message||err||'unknown error');
-  setText($('modelStatus'),'NAM ENGINE ERROR • '+msg);
-  setText($('engine'),'NAM ERROR');
+  }catch(error){
+   namNode=null;namReady=false;namModelLoaded=false;namMode=false;namSourceActive=false;
+   const msg=String(error?.stack||error?.message||error||'unknown error');
+   setText($('modelStatus'),'NAM ENGINE ERROR • '+msg);setText($('engine'),'NAM ERROR');refreshStatusIndicators();
+   throw error;
+  }finally{namEnginePromise=null}
+ })();
+ return namEnginePromise;
+}
+async function loadNamModel(json){
+ if(!json)throw new Error('NAM model JSON is empty');
+ await initNamEngine();
+ setText($('modelStatus'),'NAM MODEL • loading into DSP…');
+ try{
+  const info=await namRequest({type:'load-model',json:String(json),slimSize:-1});
+  namModelLoaded=true;namPending=false;namSourceActive=false;
+  setText($('modelStatus'),'NAM LOADED • '+(info?.expectedSampleRate?info.expectedSampleRate+' Hz • ':'')+'ready — use SWITCH to activate');
   refreshStatusIndicators();
-  return false;
+  if(namSourceRequested){
+   namSourceRequested=false;if(moduleBypass.amp)moduleBypass.amp=false;
+   setNamAmpMode(true);refreshAllBypass();refreshNamBypass();
+   setText($('modelStatus'),'NAM ACTIVE • '+(String($('fileName')?.textContent||'model')));
+  }
+  return info;
+ }catch(error){
+  namModelLoaded=false;namMode=false;namSourceActive=false;
+  setText($('modelStatus'),'NAM MODEL ERROR • '+String(error?.message||error));setText($('engine'),'NAM ERROR');refreshStatusIndicators();refreshNamBypass();
+  throw error;
  }
 }
 
@@ -143,28 +133,16 @@ function setNamAmpMode(active){
  refreshDrive();refreshAmpTone();refreshNamBypass();refreshStatusIndicators();
 }
 async function toggleAmpSource(){
- if(!running){
-  setText($('modelStatus'),'Start Audio first');
-  return;
- }
- if(!namModelJson){
-  setText($('modelStatus'),'NO NAM MODEL • choose a .NAM file first');
-  return;
- }
+ if(!running){setText($('modelStatus'),'Start Audio first');return}
+ if(!namModelJson){setText($('modelStatus'),'NO NAM MODEL • choose a .NAM file first');return}
  if(!namReady||!namModelLoaded){
-  namSourceRequested=true;
-  setText($('modelStatus'),'NAM REQUESTED • loading model into T3k WASM…');
-  const ok=await initNamWithModel(namModelJson);
-  if(!ok)return;
+  namSourceRequested=true;setText($('modelStatus'),'NAM REQUESTED • loading official NAM engine…');
+  try{await loadNamModel(namModelJson)}catch{}
+  return;
  }
  if(moduleBypass.amp)moduleBypass.amp=false;
- namSourceRequested=false;
- setNamAmpMode(!namMode);
- refreshAllBypass();
- refreshNamBypass();
- setText($('modelStatus'),namMode
-  ?'NAM ACTIVE • '+(String($('fileName')?.textContent||'model'))
-  :'AMP ACTIVE • '+(String(selectedAmp||'legacy AMP')));
+ namSourceRequested=false;setNamAmpMode(!namMode);refreshAllBypass();refreshNamBypass();
+ setText($('modelStatus'),namMode?'NAM ACTIVE • '+(String($('fileName')?.textContent||'model')):'AMP ACTIVE • '+(String(selectedAmp||'legacy AMP')));
 }
 function refreshAmpTone(){
  if(!ctx)return;
@@ -275,11 +253,9 @@ function impulse(sec,decay){
 async function start(){
  if(running)return;
  try{
-  stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:1}});
-  const namText=namModelJson;
-  const namOk=await initNamWithModel(namText);
-  if(!namOk)throw new Error('NAM engine initialization failed');
+  ctx=new AudioContext({latencyHint:'interactive'});
   if(ctx.state==='suspended')await ctx.resume();
+  stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:1}});
 
   const s=ctx.createMediaStreamSource(stream);
   inputAnalyser=ctx.createAnalyser();outputAnalyser=ctx.createAnalyser();inputAnalyser.fftSize=outputAnalyser.fftSize=2048;
@@ -314,6 +290,7 @@ async function start(){
 
   s.connect(inputAnalyser);
   s.connect(gate).connect(nodes.odDrive).connect(nodes.odTone).connect(nodes.odLevel).connect(nodes.ampDrive);
+  await initNamEngine();
   nodes.ampDrive.connect(namNode).connect(nodes.namWet).connect(nodes.ampTone);
   nodes.ampDrive.connect(nodes.namDry).connect(nodes.ampTone);
   nodes.ampTone.connect(nodes.bass).connect(nodes.mid).connect(nodes.treble).connect(nodes.presence).connect(nodes.low).connect(nodes.high).connect(nodes.cab).connect(nodes.cabPresence);
@@ -330,8 +307,9 @@ async function start(){
   await applyCabModel(selectedCab);
   for(const file of pendingIRFiles.splice(0))await loadIRFile(file);
   namMode=false;namSourceActive=false;
+  if(namModelJson&&!namModelLoaded){try{await loadNamModel(namModelJson)}catch{}}
   refreshAllBypass();refreshNamBypass();
-  running=true;$('stopAudio')?.removeAttribute('hidden');refreshStatusIndicators();setText($('engine'),'T3K NAM WASM');setText($('rate'),ctx.sampleRate+' Hz');setText($('latency'),((ctx.baseLatency||0)*1000).toFixed(1)+' ms');$('start').classList.add('on');$('start').textContent='👍';tick();
+  running=true;$('stopAudio')?.removeAttribute('hidden');refreshStatusIndicators();setText($('engine'),'WEB AUDIO');setText($('rate'),ctx.sampleRate+' Hz');setText($('latency'),((ctx.baseLatency||0)*1000).toFixed(1)+' ms');$('start').classList.add('on');$('start').textContent='👍';tick();
  }catch(err){
   setText($('engine'),'AUDIO ERROR');setText($('latency'),err?.name||'Permission denied');
   try{ctx?.close()}catch{}
@@ -340,7 +318,7 @@ async function start(){
  }
 }
 function stop(){
- cancelAnimationFrame(raf);stream?.getTracks().forEach(t=>t.stop());stream=null;ctx?.close();ctx=null;running=false;namNode=null;namReady=false;namModelLoaded=false;namMode=false;namSourceActive=false;namSourceRequested=false;namPending=Boolean(namModelJson);
+ cancelAnimationFrame(raf);stream?.getTracks().forEach(t=>t.stop());stream=null;ctx?.close();ctx=null;running=false;namNode=null;namReady=false;namModelLoaded=false;namMode=false;namSourceActive=false;namSourceRequested=false;namPending=Boolean(namModelJson);namEnginePromise=null;namRequestMap.clear();
  $('stopAudio')?.setAttribute('hidden','');$('start').classList.remove('on');$('start').classList.remove('bypassed');$('start').textContent='🖕';$('start').setAttribute('aria-pressed','false');setText($('engine'),'WEB AUDIO');refreshStatusIndicators();setText($('rate'),'—');setText($('latency'),'—');$('in').value=0;$('out').value=0;setText($('note'),'—');setText($('hz'),'—');setText($('cents'),'PLAY A NOTE');
 }
 function tick(){
