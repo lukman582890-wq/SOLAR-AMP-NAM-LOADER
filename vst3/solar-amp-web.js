@@ -258,33 +258,7 @@ function applyEqModel(name){
  if(ctx)refreshEq();else updateEqGraph();
 }
 function applyOdModel(name){selectedOd=name;const p={'Tube Screamer':[35,50,72,true],'Tight OD':[48,58,70,true],'Off':[0,50,100,false]}[name]||[35,50,72,true];state.drive=p[0];state.tone=p[1];state.level=p[2];SPVFUI(14,p[0]/100);SPVFUI(15,p[1]/100);SPVFUI(16,p[2]/100);SPVFUI(22,p[3]?1:0);moduleBypass.od=!p[3];const icon=document.querySelector('.module-bypass[data-module="od"]');if(icon){icon.textContent=moduleBypass.od?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass.od)}}
-async function applyCabModel(name){
- selectedCab=name;
- if(window.__SOLAR_VST3__ && irPackV1.includes(name)){
-  try{
-   const r=await fetch('./ir/'+encodeURIComponent(name)+'.wav',{cache:'force-cache'});
-   if(!r.ok)throw new Error('HTTP '+r.status);
-   const bytes=new Uint8Array(await r.arrayBuffer());
-   SAMFUI(101,-1,(window.__SOLAR_B64__||((x)=>btoa(String.fromCharCode(...x))))(bytes));
-   setText($('cabModel'),formatIRName(name));setText($('irStatus'),'PACK V1 • sending to native DSP');
-  }catch(err){setText($('irStatus'),'PACK V1 LOAD ERROR')}
-  return;
- }
- if(irPackV1.includes(name)){
-  if(!ctx){setText($('irStatus'),'PACK V1 • READY');return}
-  irBuffer=null;irName='';
-  try{
-   const r=await fetch('./ir/'+encodeURIComponent(name)+'.wav',{cache:'force-cache'});
-   if(!r.ok)throw new Error('HTTP '+r.status);
-   const decoded=await ctx.decodeAudioData(await r.arrayBuffer());
-   irBuffer=decoded;irName=name;irFiles.set(name,{buffer:decoded});renderIRLibrary();
-   setText($('cabModel'),formatIRName(name));setText($('irStatus'),'PACK V1 • '+formatIRName(name));refreshCab();return;
-  }catch(err){
-   setText($('irStatus'),'PACK V1 LOAD ERROR');console.error('IR load failed',name,err);
-  }
- }
- if(ctx)refreshCab();
-}
+async async function applyCabModel(name){selectedCab=name;if(!name)return;setText($('cabModel'),formatIRName(name));setText($('irStatus'),'CAB • loading native IR…');try{SAMFUI(104,-1,btoa(unescape(encodeURIComponent(String(name)))));setText($('irStatus'),'CAB • native IR '+formatIRName(name))}catch(e){setText($('irStatus'),'CAB IR ERROR • '+(e?.message||e))}}
 function renderIRLibrary(){
  const box=$('irLibrary');if(!box)return;box.innerHTML='';
  irFiles.forEach((v,name)=>{
