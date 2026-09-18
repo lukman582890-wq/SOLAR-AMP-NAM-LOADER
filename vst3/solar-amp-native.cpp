@@ -110,8 +110,31 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   disable_denormals();
 
   _PrepareBuffers(numChannelsInternal, numFrames);
-  // Input is collapsed to mono in preparation for the NAM.
+  // Input is collapsed to mono in preparation for the native SOLAR AMP chain.
   _ProcessInput(inputs, numFrames, numChannelsExternalIn, numChannelsInternal);
+
+  // OD / drive stage. This is intentionally simple and allocation-free on the
+  // audio thread; the NAM remains the main amp-modeling stage.
+  if (GetParam(kODActive)->Bool())
+  {
+    const double drive = GetParam(kODDrive)->Value() / 100.0;
+    const double tone = GetParam(kODTone)->Value() / 100.0;
+    const double level = GetParam(kODLevel)->Value() / 100.0;
+    const double amount = 1.0 + drive * 19.0;
+    const double norm = std::tanh(amount);
+    const double sr = sampleRate;
+    const double cutoff = 500.0 + tone * 7500.0;
+    const double alpha = 1.0 - std::exp(-2.0 * M_PI * cutoff / sr);
+    for (size_t s = 0; s < numFrames; ++s)
+    {
+      const float x = mInputArray[0][s];
+      const float clipped = static_cast<float>(std::tanh(x * amount) / norm);
+      mODToneState += static_cast<float>(alpha) * (clipped - mODToneState);
+      const float y = mODToneState * static_cast<float>(1.0 - tone) + clipped * static_cast<float>(tone);
+      mInputArray[0][s] = y * static_cast<float>(0.65 + level * 0.55);
+    }
+  }
+
   const bool nativeAmpBypass = mNativeAmpBypass.load();
   if (!nativeAmpBypass) _ApplyDSPStaging();
   const bool noiseGateActive = !nativeAmpBypass && GetParam(kNoiseGateActive)->Value();
@@ -159,7 +182,58 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   mHighPass.SetParams(highPassParams);
   // mLowPass.SetParams(lowPassParams);
   sample** hpfPointers = mHighPass.Process(irPointers, numChannelsInternal, numFrames);
-  // sample** lpfPointers = mLowPass.Process(hpfPointers, numChannelsInternal, numFrames);
+
+  // Native 3-band EQ.
+  if (GetParam(kEQActive)->Bool())
+  {
+    const double sr = sampleRate;
+    const double lowAlpha = 1.0 - std::exp(-2.0 * M_PI * 180.0 / sr);
+    const double highAlpha = 1.0 - std::exp(-2.0 * M_PI * 4200.0 / sr);
+    const double lowGain = std::pow(10.0, ((GetParam(kEQLow)->Value() - 50.0) * 24.0 / 100.0) / 20.0);
+    const double midGain = std::pow(10.0, ((GetParam(kEQMid)->Value() - 50.0) * 24.0 / 100.0) / 20.0);
+    const double highGain = std::pow(10.0, ((GetParam(kEQHigh)->Value() - 50.0) * 24.0 / 100.0) / 20.0);
+    for (size_t s = 0; s < numFrames; ++s)
+    {
+      const float x = hpfPointers[0][s];
+      mEQLowState += static_cast<float>(lowAlpha) * (x - mEQLowState);
+      mEQHighState += static_cast<float>(highAlpha) * (x - mEQHighState);
+      const float low = mEQLowState;
+      const float high = x - mEQHighState;
+      const float mid = x - low - high;
+      hpfPointers[0][s] = static_cast<float>(low * lowGain + mid * midGain + high * highGain);
+    }
+  }
+
+  // Native delay/reverb/effects stage.
+  if (GetParam(kFXActive)->Bool() && !mDelayBuffer.empty())
+  {
+    const int mode = GetParam(kFXMode)->Int();
+    const double wetDelay = GetParam(kFXDelay)->Value() / 100.0;
+    const double wetReverb = GetParam(kFXReverb)->Value() / 100.0;
+    const size_t delaySamples = std::min(mDelayBuffer.size() - 1,
+      static_cast<size_t>((0.08 + wetDelay * 0.52) * sr));
+    const size_t reverbSamples = std::min(mReverbBuffer.size() - 1,
+      static_cast<size_t>(0.23 * sr));
+    for (size_t s = 0; s < numFrames; ++s)
+    {
+      const float x = hpfPointers[0][s];
+      const size_t dp = (mDelayWritePos + mDelayBuffer.size() - delaySamples) % mDelayBuffer.size();
+      const float delayed = mDelayBuffer[dp];
+      const size_t rp = (mReverbWritePos + mReverbBuffer.size() - reverbSamples) % mReverbBuffer.size();
+      const float reverbed = mReverbBuffer[rp];
+      float y = x;
+      if (mode == 0) y += delayed * static_cast<float>(wetDelay * 0.55);
+      else if (mode == 1) y += reverbed * static_cast<float>(wetReverb * 0.60);
+      else if (mode == 2) y += delayed * static_cast<float>(wetDelay * 0.22);
+      else if (mode == 3) y += (delayed - reverbed) * static_cast<float>(wetReverb * 0.30);
+      else y *= static_cast<float>(1.0 - wetReverb * 0.35);
+      mDelayBuffer[mDelayWritePos] = x + delayed * 0.28f;
+      mReverbBuffer[mReverbWritePos] = x + reverbed * static_cast<float>(0.68 * wetReverb);
+      mDelayWritePos = (mDelayWritePos + 1) % mDelayBuffer.size();
+      mReverbWritePos = (mReverbWritePos + 1) % mReverbBuffer.size();
+      hpfPointers[0][s] = y;
+    }
+  }
 
   // restore previous floating point state
   std::feupdateenv(&fe_state);
