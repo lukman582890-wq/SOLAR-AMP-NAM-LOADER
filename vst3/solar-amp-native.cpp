@@ -22,6 +22,11 @@ using namespace iplug;
 
 const double kDCBlockerFrequency = 5.0;
 
+const std::string kCalibrateInputParamName = "CalibrateInput";
+const bool kDefaultCalibrateInput = false;
+const std::string kInputCalibrationLevelParamName = "InputCalibrationLevel";
+const double kDefaultInputCalibrationLevel = 12.0;
+
 
 const std::string kCalibrateInputParamName = "CalibrateInput";
 const bool kDefaultCalibrateInput = false;
@@ -485,7 +490,6 @@ std::string NeuralAmpModeler::_StageModel(const WDL_String& modelPath)
     }
     mStagedModel = std::move(temp);
     mNAMPath = modelPath;
-    SendControlMsgFromDelegate(kCtrlTagModelFileBrowser, kMsgTagLoadedModel, mNAMPath.GetLength(), mNAMPath.Get());
   }
   catch (std::runtime_error& e)
   {
@@ -525,7 +529,6 @@ dsp::wav::LoadReturnCode NeuralAmpModeler::_StageIR(const WDL_String& irPath)
   if (wavState == dsp::wav::LoadReturnCode::SUCCESS)
   {
     mIRPath = irPath;
-    SendControlMsgFromDelegate(kCtrlTagIRFileBrowser, kMsgTagLoadedIR, mIRPath.GetLength(), mIRPath.Get());
   }
   else
   {
