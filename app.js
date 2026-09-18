@@ -47,7 +47,7 @@ function toggleModule(name){
  if(!(name in moduleBypass))return;
  moduleBypass[name]=!moduleBypass[name];
  const icon=document.querySelector('.module-bypass[data-module="'+name+'"]');
- if(icon){icon.textContent=moduleBypass[name]?'👍':'🖕';icon.classList.toggle('bypassed',moduleBypass[name]);icon.setAttribute('aria-pressed',String(!moduleBypass[name]));}
+ if(icon){icon.textContent=moduleBypass[name]?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass[name]);icon.setAttribute('aria-pressed',String(!moduleBypass[name]));}
  refreshAllBypass();
 }
 function apply(k,v){
@@ -166,7 +166,7 @@ function loadSavedPreset(p){
  setAmp?.(p.amp||'British 800');setOd?.(p.od||'Tube Screamer');setEq?.(p.eq||'Default');setCab?.(p.cab||'4x12 V30');setFx?.(p.fx||'Hall Reverb');
  setText($('presetName'),'★  '+p.name);
  Object.entries(moduleBypass).forEach(k=>moduleBypass[k]=Boolean(p.bypass?.[k]));
- document.querySelectorAll('.module-bypass[data-module]').forEach(icon=>{const n=icon.dataset.module;icon.textContent=moduleBypass[n]?'👍':'🖕';icon.classList.toggle('bypassed',moduleBypass[n]);icon.setAttribute('aria-pressed',String(!moduleBypass[n]))});
+ document.querySelectorAll('.module-bypass[data-module]').forEach(icon=>{const n=icon.dataset.module;icon.textContent=moduleBypass[n]?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass[n]);icon.setAttribute('aria-pressed',String(!moduleBypass[n]))});
  Object.entries(state).forEach(([k,v])=>knobSetters[k]?.(v));
  applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);applyCabModel(selectedCab);applyFxModel(selectedFx);applyFxMode(selectedFxMode);
 }
