@@ -192,10 +192,11 @@ function wireModelSelector(selector,values,onChange){
  buttons[1]?.addEventListener('click',()=>{i=(i+1)%values.length;update()});update();return set;
 }
 function updateEqGraph(){
- const path=$('eqCurve'),svg=document.querySelector('.eq-graph svg');if(!path||!svg)return;
+ const path=$('eqCurve'),fill=$('eqFill'),svg=document.querySelector('.eq-graph svg');if(!path||!svg)return;
  const y=g=>50-(Math.max(-12,Math.min(12,g))*2.65);
  const d='M0 '+y(eqGraph.low)+' C55 '+y(eqGraph.low)+' 92 '+y(eqGraph.mid)+' 150 '+y(eqGraph.mid)+' C208 '+y(eqGraph.mid)+' 245 '+y(eqGraph.high)+' 300 '+y(eqGraph.high);
  path.setAttribute('d',d);
+ if(fill)fill.setAttribute('d',d+' L300 100 L0 100 Z');
  const pts=[['eqLowPoint',42,eqGraph.low],['eqMidPoint',150,eqGraph.mid],['eqHighPoint',258,eqGraph.high]];
  pts.forEach(([id,x,g])=>{let q=$(id);if(!q){q=document.createElementNS('http://www.w3.org/2000/svg','circle');q.id=id;q.setAttribute('r','5');q.classList.add('eq-point');svg.append(q)}q.setAttribute('cx',x);q.setAttribute('cy',y(g));});
 }
