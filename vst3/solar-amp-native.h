@@ -62,6 +62,7 @@ enum EParams
   kFXActive,
   kFXMode,
   kAmpModel,
+  kAmpMaster,
   kNumParams
 };
 
@@ -243,6 +244,8 @@ public:
   size_t mDelayWritePos = 0;
   size_t mReverbWritePos = 0;
   float mODToneState = 0.0f;
+  float mAmpLowState = 0.0f;
+  float mAmpHighState = 0.0f;
   float mEQLowState = 0.0f;
   float mEQHighState = 0.0f;
   float mAmpState = 0.0f;
