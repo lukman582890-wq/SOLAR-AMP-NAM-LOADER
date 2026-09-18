@@ -116,11 +116,15 @@ jobs:
           $bundle = 'vst3-dist\SOLAR AMP.vst3\Contents\x86_64-win'
           New-Item -ItemType Directory -Force $bundle | Out-Null
           Copy-Item $bin.FullName (Join-Path $bundle 'SOLARAMP.vst3') -Force
-          $resources = 'vst3-dist\SOLAR AMP.vst3\Contents\Resources\SOLAR AMP\web'
+          $resources = 'vst3-dist\SOLAR AMP.vst3\Contents\Resources\web'
+          $legacyResources = 'vst3-dist\SOLAR AMP.vst3\Contents\Resources\SOLAR AMP\web'
           New-Item -ItemType Directory -Force $resources | Out-Null
+          New-Item -ItemType Directory -Force $legacyResources | Out-Null
           Copy-Item 'nam-vst3-source\NeuralAmpModeler\Resources\web\*' $resources -Recurse -Force
+          Copy-Item 'nam-vst3-source\NeuralAmpModeler\Resources\web\*' $legacyResources -Recurse -Force
           Write-Host "VST3 binary: $($bin.FullName)"
           Write-Host "Web UI: $resources"
+          Write-Host "Legacy Web UI fallback: $legacyResources"
 
       - name: Validate
         shell: pwsh
@@ -136,8 +140,9 @@ jobs:
           $bundle = Resolve-Path 'vst3-dist\SOLAR AMP.vst3'
           $dll = Get-ChildItem $bundle -Recurse -File -Filter 'SOLARAMP.vst3' | Select-Object -First 1
           if (-not $dll) { throw 'SOLARAMP.vst3 binary not found inside the bundle.' }
-          if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\SOLAR AMP\web\index.html'))) { throw 'WebView index.html missing.' }
-          if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\SOLAR AMP\web\solar-amp-web.js'))) { throw 'SOLAR AMP WebView JS missing.' }
+          if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\web\index.html'))) { throw 'WebView index.html missing.' }
+          if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\web\solar-amp-web.js'))) { throw 'SOLAR AMP WebView JS missing.' }
+          if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\SOLAR AMP\web\index.html'))) { throw 'Legacy WebView fallback index.html missing.' }
           $old = Get-ChildItem $bundle -Recurse -File -Filter 'NeuralAmpModeler.vst3'
           if ($old) { throw 'Old NeuralAmpModeler.vst3 binary still exists in SOLAR AMP bundle.' }
           Write-Host 'SOLAR AMP WebView bundle identity/resources verified.'
