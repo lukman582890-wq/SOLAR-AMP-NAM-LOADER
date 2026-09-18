@@ -48,6 +48,19 @@ enum EParams
   kInputCalibrationLevel,
   kOutputMode,
   kSlim,
+  // SOLAR AMP native module controls
+  kAmpPresence,
+  kODDrive,
+  kODTone,
+  kODLevel,
+  kEQLow,
+  kEQMid,
+  kEQHigh,
+  kFXDelay,
+  kFXReverb,
+  kODActive,
+  kFXActive,
+  kFXMode,
   kNumParams
 };
 
@@ -214,6 +227,13 @@ public:
   bool OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pData) override;
 
   std::atomic<bool> mNativeAmpBypass{false};
+  std::vector<float> mDelayBuffer;
+  std::vector<float> mReverbBuffer;
+  size_t mDelayWritePos = 0;
+  size_t mReverbWritePos = 0;
+  float mODToneState = 0.0f;
+  float mEQLowState = 0.0f;
+  float mEQHighState = 0.0f;
 
 private:
   // Allocates mInputPointers and mOutputPointers
