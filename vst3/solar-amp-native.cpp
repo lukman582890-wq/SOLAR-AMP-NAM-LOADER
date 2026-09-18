@@ -3,6 +3,9 @@
 #include <filesystem>
 #include <iostream>
 #include <utility>
+#ifdef OS_WIN
+#include <windows.h>
+#endif
 
 #include "../NeuralAmpModelerCore/NAM/activations.h"
 #include "../NeuralAmpModelerCore/NAM/get_dsp.h"
@@ -18,6 +21,10 @@
 
 
 using namespace iplug;
+
+#ifdef OS_WIN
+static void NeuralAmpModuleAnchor() {}
+#endif
 
 const double kDCBlockerFrequency = 5.0;
 
@@ -54,10 +61,18 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
   mEditorInitFunc = [&]()
   {
     WDL_String resourcePath;
-    // On Windows VST3, BundleResourcePath needs the plug-in module handle.
-    // The previous call used the default (NULL) module and could resolve the
-    // host process instead of SOLAR AMP's own Contents\\Resources directory.
-    BundleResourcePath(resourcePath, 0);
+#ifdef OS_WIN
+    // Resolve the module that contains this code, i.e. SOLARAMP.vst3.
+    // Passing 0 resolves the DAW/host executable and breaks the resource path.
+    HMODULE pluginModule = nullptr;
+    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                             GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCWSTR>(&NeuralAmpModuleAnchor),
+                           &pluginModule))
+      BundleResourcePath(resourcePath, pluginModule);
+#else
+    BundleResourcePath(resourcePath);
+#endif
     resourcePath.Append("web/index.html");
     LoadFile(resourcePath.Get(), GetBundleID());
     EnableScroll(false);
