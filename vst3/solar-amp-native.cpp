@@ -124,7 +124,7 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
     const double norm = std::tanh(amount);
     const double sr = sampleRate;
     const double cutoff = 500.0 + tone * 7500.0;
-    const double alpha = 1.0 - std::exp(-2.0 * M_PI * cutoff / sr);
+    const double alpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * cutoff / sr);
     for (size_t s = 0; s < numFrames; ++s)
     {
       const float x = mInputArray[0][s];
@@ -187,8 +187,8 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   if (GetParam(kEQActive)->Bool())
   {
     const double sr = sampleRate;
-    const double lowAlpha = 1.0 - std::exp(-2.0 * M_PI * 180.0 / sr);
-    const double highAlpha = 1.0 - std::exp(-2.0 * M_PI * 4200.0 / sr);
+    const double lowAlpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * 180.0 / sr);
+    const double highAlpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * 4200.0 / sr);
     const double lowGain = std::pow(10.0, ((GetParam(kEQLow)->Value() - 50.0) * 24.0 / 100.0) / 20.0);
     const double midGain = std::pow(10.0, ((GetParam(kEQMid)->Value() - 50.0) * 24.0 / 100.0) / 20.0);
     const double highGain = std::pow(10.0, ((GetParam(kEQHigh)->Value() - 50.0) * 24.0 / 100.0) / 20.0);
@@ -211,9 +211,9 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
     const double wetDelay = GetParam(kFXDelay)->Value() / 100.0;
     const double wetReverb = GetParam(kFXReverb)->Value() / 100.0;
     const size_t delaySamples = std::min(mDelayBuffer.size() - 1,
-      static_cast<size_t>((0.08 + wetDelay * 0.52) * sr));
+      static_cast<size_t>((0.08 + wetDelay * 0.52) * sampleRate));
     const size_t reverbSamples = std::min(mReverbBuffer.size() - 1,
-      static_cast<size_t>(0.23 * sr));
+      static_cast<size_t>(0.23 * sampleRate));
     for (size_t s = 0; s < numFrames; ++s)
     {
       const float x = hpfPointers[0][s];
