@@ -149,9 +149,14 @@ jobs:
           $bundle = Resolve-Path 'vst3-dist\SOLAR AMP.vst3'
           $dll = Get-ChildItem $bundle -Recurse -File -Filter 'SOLARAMP.vst3' | Select-Object -First 1
           if (-not $dll) { throw 'SOLARAMP.vst3 binary not found inside the bundle.' }
-          if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\web\index.html'))) { throw 'WebView index.html missing.' }
-          if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\web\solar-amp-web.js'))) { throw 'SOLAR AMP WebView JS missing.' }
+          $webRoot = Join-Path $bundle 'Contents\Resources\web'
+          if (-not (Test-Path (Join-Path $webRoot 'index.html'))) { throw 'WebView index.html missing.' }
+          if (-not (Test-Path (Join-Path $webRoot 'solar-amp-web.js'))) { throw 'SOLAR AMP WebView JS missing.' }
+          if (Test-Path (Join-Path $webRoot 'app.js')) { throw 'PWA app.js must not be shipped inside native VST3.' }
+          $irCount = @(Get-ChildItem (Join-Path $webRoot 'ir') -Filter '*.wav' -File).Count
+          if ($irCount -lt 1) { throw 'Native VST3 IR pack missing.' }
           if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\SOLAR AMP\web\index.html'))) { throw 'Legacy WebView fallback index.html missing.' }
+          Write-Host "Native VST3 Web UI verified: $irCount IR files."
           $irCount = @(Get-ChildItem (Join-Path $bundle 'Contents\Resources\web\ir') -Filter '*.wav' -File).Count
           if ($irCount -lt 20) { throw "IR pack incomplete: found $irCount WAV files, expected at least 20." }
           $old = Get-ChildItem $bundle -Recurse -File -Filter 'NeuralAmpModeler.vst3'
