@@ -11,20 +11,18 @@
 #include "ToneStack.h"
 
 #include "IPlug_include_in_plug_hdr.h"
-#include "ISender.h"
 
 
 const int kNumPresets = 1;
 // The plugin is mono inside
 constexpr size_t kNumChannelsInternal = 1;
 
-class NAMSender : public iplug::IPeakAvgSender<>
+class NAMSender
 {
 public:
-  NAMSender()
-  : iplug::IPeakAvgSender<>(-90.0, true, 5.0f, 1.0f, 300.0f, 500.0f)
-  {
-  }
+  void Reset(double) {}
+  void TransmitData(iplug::Plugin&) {}
+  void ProcessBlock(iplug::sample**, int, int, int) {}
 };
 
 enum EParams
@@ -307,7 +305,6 @@ private:
 
   std::atomic<bool> mNewModelLoadedInDSP = false;
   std::atomic<bool> mModelCleared = false;
-  std::atomic<bool> mNativeAmpBypass = false;
 
   // Tone stack modules
   std::unique_ptr<dsp::tone_stack::AbstractToneStack> mToneStack;
