@@ -6,10 +6,10 @@
 <meta name="theme-color" content="#080b0e">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=32">
+<link rel="stylesheet" href="styles.css?v=33">
 <title>Solar Amp — NAM Loader</title>
 <script>
-(()=>{const V='solar-ui-v32';if(localStorage.getItem(V)!=='1'){localStorage.setItem(V,'1');navigator.serviceWorker?.getRegistrations?.().then(rs=>Promise.all(rs.map(r=>r.unregister()))).then(()=>caches?.keys?.()).then(ks=>Promise.all((ks||[]).map(k=>caches.delete(k)))).then(()=>location.reload()).catch(()=>location.reload())}})();
+(()=>{const V='solar-ui-v33';if(localStorage.getItem(V)!=='1'){localStorage.setItem(V,'1');navigator.serviceWorker?.getRegistrations?.().then(rs=>Promise.all(rs.map(r=>r.unregister()))).then(()=>caches?.keys?.()).then(ks=>Promise.all((ks||[]).map(k=>caches.delete(k)))).then(()=>location.reload()).catch(()=>location.reload())}})();
 </script></head>
 <body>
 <main>
@@ -101,6 +101,6 @@
 
 <footer class="footer"><span>PLAY&nbsp;&nbsp;•&nbsp;&nbsp;EXPLORE&nbsp;&nbsp;•&nbsp;&nbsp;CREATE</span><span>SOLAR AMP&nbsp;&nbsp;v0.1.0</span></footer>
 </main>
-<script src="app.js?v=32"></script>
+<script src="app.js?v=33"></script>
 </body>
 </html>
