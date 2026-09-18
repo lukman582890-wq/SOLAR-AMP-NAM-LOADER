@@ -61,6 +61,7 @@ enum EParams
   kODActive,
   kFXActive,
   kFXMode,
+  kAmpModel,
   kNumParams
 };
 
@@ -226,7 +227,10 @@ public:
   void OnParamChangeUI(int paramIdx, iplug::EParamSource source) override;
   bool OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pData) override;
 
+  // true = bypass both legacy AMP and NAM. false = AMP/NAM source is active.
   std::atomic<bool> mNativeAmpBypass{false};
+  // false = legacy SOLAR AMP stage, true = loaded NAM stage.
+  std::atomic<bool> mNamActive{false};
   std::vector<float> mDelayBuffer;
   std::vector<float> mReverbBuffer;
   size_t mDelayWritePos = 0;
@@ -234,6 +238,11 @@ public:
   float mODToneState = 0.0f;
   float mEQLowState = 0.0f;
   float mEQHighState = 0.0f;
+  float mAmpState = 0.0f;
+  float mPhaserState1 = 0.0f;
+  float mPhaserState2 = 0.0f;
+  double mChorusPhase = 0.0;
+  double mTremoloPhase = 0.0;
 
 private:
   // Allocates mInputPointers and mOutputPointers
