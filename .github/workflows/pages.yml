@@ -25,13 +25,20 @@ jobs:
         run: node --check app.js
       - name: Prepare official NAM v2 runtime
         run: |
+          set -euo pipefail
+          rm -rf /tmp/nam-package
           mkdir -p /tmp/nam-package
-          npm pack neural-amp-modeler-wasm@2.0.1 --pack-destination /tmp/nam-package
-          tar -xzf /tmp/nam-package/neural-amp-modeler-wasm-2.0.1.tgz -C /tmp/nam-package
-          cp /tmp/nam-package/package/dist/engine/nam-worklet.js ./nam-worklet.js
-          cp /tmp/nam-package/package/dist/engine/nam-engine.wasm ./nam-engine.wasm
-          test -s nam-worklet.js
-          test -s nam-engine.wasm
+          npm pack --silent neural-amp-modeler-wasm@2.0.1 --pack-destination /tmp/nam-package
+          PKG_TGZ="$(find /tmp/nam-package -maxdepth 1 -type f -name '*.tgz' -print -quit)"
+          test -n "$PKG_TGZ"
+          rm -rf /tmp/nam-extracted
+          mkdir -p /tmp/nam-extracted
+          tar -xzf "$PKG_TGZ" -C /tmp/nam-extracted
+          test -s /tmp/nam-extracted/package/dist/engine/nam-worklet.js
+          test -s /tmp/nam-extracted/package/dist/engine/nam-engine.wasm
+          cp /tmp/nam-extracted/package/dist/engine/nam-worklet.js ./nam-worklet.js
+          cp /tmp/nam-extracted/package/dist/engine/nam-engine.wasm ./nam-engine.wasm
+          ls -lh nam-worklet.js nam-engine.wasm
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
