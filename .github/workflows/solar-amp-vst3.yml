@@ -103,22 +103,22 @@ jobs:
       - name: Build VST3
         shell: pwsh
         run: |
-          msbuild 'nam-vst3-source\NeuralAmpModeler\projects\NeuralAmpModeler-vst3.vcxproj' /m /p:Configuration=Release /p:Platform=x64 /p:BuildProjectReferences=true
+          msbuild 'nam-vst3-source\NeuralAmpModeler\projects\NeuralAmpModeler-vst3.vcxproj' /m /p:Configuration=Release /p:Platform=x64 /p:BuildProjectReferences=true /p:TargetName=SOLARAMP /p:PostBuildEventUseInBuild=false /p:PreBuildEventUseInBuild=false
 
       - name: Locate VST3 and install Web UI resources
         shell: pwsh
         run: |
-          $vst3 = Get-ChildItem nam-vst3-source -Recurse -Filter '*.vst3' -Directory |
-            Where-Object { $_.FullName -notmatch '\\iPlug2\\' } |
-            Where-Object { $_.FullName -notmatch '\\NeuralAmpModeler\.vst3$' } |
+          $bin = Get-ChildItem 'nam-vst3-source\NeuralAmpModeler\build-win' -Recurse -File |
+            Where-Object { $_.Name -in @('SOLARAMP.vst3','NeuralAmpModeler.vst3') } |
             Select-Object -First 1
-          if (-not $vst3) { throw 'No SOLAR AMP VST3 bundle produced.' }
-          New-Item -ItemType Directory -Force vst3-dist | Out-Null
-          Copy-Item -Recurse $vst3.FullName 'vst3-dist\SOLAR AMP.vst3'
+          if (-not $bin) { throw 'No built VST3 binary found.' }
+          $bundle = 'vst3-dist\SOLAR AMP.vst3\Contents\x86_64-win'
+          New-Item -ItemType Directory -Force $bundle | Out-Null
+          Copy-Item $bin.FullName (Join-Path $bundle 'SOLARAMP.vst3') -Force
           $resources = 'vst3-dist\SOLAR AMP.vst3\Contents\Resources\web'
           New-Item -ItemType Directory -Force $resources | Out-Null
           Copy-Item 'nam-vst3-source\NeuralAmpModeler\Resources\web\*' $resources -Recurse -Force
-          Write-Host "VST3: $($vst3.FullName)"
+          Write-Host "VST3 binary: $($bin.FullName)"
           Write-Host "Web UI: $resources"
 
       - name: Validate
