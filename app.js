@@ -1,4 +1,4 @@
-let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,raf,installEvent;let namNode=null,namReady=false,namModelLoaded=false,namMode=false,namSourceActive=false,namSourceRequested=false,namPending=false,namModelJson='';const moduleBypass={amp:false,od:false,eq:false,cab:false,fx:false};let eqGraph={low:0,mid:0,high:0};
+let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,raf,installEvent;let namNode=null,namEngine=null,namReady=false,namModelLoaded=false,namMode=false,namSourceActive=false,namSourceRequested=false,namPending=false,namModelJson='';const moduleBypass={amp:false,od:false,eq:false,cab:false,fx:false};let eqGraph={low:0,mid:0,high:0};
 const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const state={gain:25,bass:100,mid:50,treble:50,presence:50,master:100,drive:35,tone:50,level:72,mic:50,low:50,high:70,delay:28,reverb:22,eqLow:50,eqMid:50,eqHigh:50};
 const presets=[
@@ -16,95 +16,61 @@ function formatIRName(name){
  return m[1].toUpperCase()+' • '+m[2].toUpperCase().replace('57OFF','57 OFF')+' • '+m[3].toUpperCase();
 }
 function refreshNamBypass(){
- if(!namNode)return;
- namNode.port.postMessage({type:'bypass',value:moduleBypass.amp||!namModelLoaded||!namMode});
+ if(!namEngine)return;
+ namEngine.setBypass(Boolean(moduleBypass.amp||!namModelLoaded||!namMode));
 }
 async function initNam(){
- if(!ctx?.audioWorklet)return false;
+ if(!ctx)return false;
  try{
-  await ctx.audioWorklet.addModule('./nam-worklet.js?v=59');
-  namNode=new AudioWorkletNode(ctx,'solar-nam-processor',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1]});
-  return await new Promise(resolve=>{
-   let settled=false;
-   const finish=(ok)=>{
-    if(settled)return;
-    settled=true;
-    clearTimeout(timer);
-    resolve(ok);
-   };
-   const timer=setTimeout(()=>{
-    namReady=false;
-    setText($('modelStatus'),'NAM WASM TIMEOUT • processor did not become ready');
-    setText($('engine'),'NAM WASM ERROR');
-    finish(false);
-   },12000);
-   namNode.port.onmessage=e=>{
-    const d=e.data||{};
-    if(d.type==='wasmFetched'){setText($('modelStatus'),'NAM WASM FETCHED • '+d.bytes+' bytes • initializing engine…');setText($('engine'),'NAM WASM')}
-    if(d.type==='processorStarted'){
-     setText($('modelStatus'),namModelJson?'NAM PROCESSOR STARTED • loading WASM…':'NAM PROCESSOR STARTED • initializing WASM…');
-     setText($('engine'),'NAM WASM');
-    }
-    if(d.type==='loaderTimeout'){
-     namReady=false;namModelLoaded=false;namSourceActive=false;namPending=false;
-     setText($('modelStatus'),'NAM WASM TIMEOUT • '+(d.message||'loader stalled'));
-     setText($('engine'),'NAM WASM ERROR');
-     refreshNamBypass();refreshStatusIndicators();
-    }
-    if(d.type==='ready'){
-     namReady=true;
-     setText($('modelStatus'),namModelJson?'NAM WASM READY • loading model…':'NAM WASM READY • '+d.sampleRate+' Hz');
-     finish(true);
-     if(namModelJson)loadNamModel(namModelJson);
-    }
-    if(d.type==='modelLoaded'){
-     namModelLoaded=Boolean(d.success&&d.hasModel);
-     namPending=false;
-     if(namModelLoaded&&namSourceRequested){
-      namSourceRequested=false;
-      setNamAmpMode(true);
-      setText($('modelStatus'),'NAM ACTIVE • '+(String($('fileName')?.textContent||'model')));
-     }else{
-      namSourceActive=false;
-      setNamAmpMode(false);
-      setText($('modelStatus'),namModelLoaded?'NAM LOADED • '+(d.architecture||'model')+' • ready — use SWITCH':'NAM MODEL LOAD FAILED • '+(d.architecture||'unknown architecture'));
-     }
-    }
-    if(d.type==='processing'&&namModelLoaded){
-     setText($('modelStatus'),'NAM ACTIVE • real WASM inference • '+d.blocks+' blocks');
-     setText($('engine'),'NAM WASM');
-    }
-    if(d.type==='processError'){
-     namModelLoaded=false;namSourceActive=false;namSourceRequested=false;namPending=false;
-     setNamAmpMode(false);
-     setText($('modelStatus'),'NAM DSP ERROR • '+(d.message||'processing failed'));
-     setText($('engine'),'NAM WASM ERROR');
-     refreshDrive();refreshNamBypass();
-    }
-    if(d.type==='error'||d.type==='modelError'){
-     namReady=false;namModelLoaded=false;namSourceActive=false;namPending=false;
-     setNamAmpMode(false);
-     const msg=String(d.message||'unknown error');
-     setText($('modelStatus'),'NAM WASM ERROR • '+msg);
-     setText($('engine'),'NAM WASM ERROR');
-     refreshDrive();refreshNamBypass();
-     finish(false);
-    }
-   };
-  });
+  setText($('modelStatus'),namModelJson?'NAM ENGINE • initializing…':'NAM ENGINE • initializing…');
+  const mod=await import('./vendor/nam-web/index.js?v=58');
+  namEngine=await mod.createNamNode(ctx);
+  namNode=namEngine.node;
+  namReady=true;
+  namEngine.setBypass(true);
+  setText($('modelStatus'),namModelJson?'NAM READY • loading model…':'NAM READY • choose a .NAM model');
+  if(namModelJson)await loadNamModel(namModelJson);
+  return true;
  }catch(err){
-  namNode=null;namReady=false;namModelLoaded=false;namMode=false;namSourceActive=false;namPending=false;
-  setNamAmpMode(false);
-  const msg=String(err?.message||err||'unknown error');
-  setText($('modelStatus'),'NAM WASM UNAVAILABLE • '+msg);
-  setText($('engine'),'NAM WASM ERROR');
+  namEngine=null;namNode=null;namReady=false;namModelLoaded=false;namMode=false;namSourceActive=false;
+  const msg=String(err?.stack||err?.message||err||'unknown error');
+  setText($('modelStatus'),'NAM ENGINE ERROR • '+msg);
+  setText($('engine'),'NAM ERROR');
+  refreshStatusIndicators();
   return false;
  }
 }
-function loadNamModel(json){
+async function loadNamModel(json){
  namModelJson=String(json||'');
- if(namNode&&namReady)namNode.port.postMessage({type:'loadModel',modelJson:namModelJson,bypass:moduleBypass.amp});
+ if(!namEngine||!namReady||!namModelJson)return false;
+ try{
+  const bytes=new TextEncoder().encode(namModelJson);
+  await namEngine.loadModel(bytes.buffer);
+  namModelLoaded=true;
+  namPending=false;
+  setText($('modelStatus'),namSourceRequested
+   ?'NAM LOADED • switching to NAM…'
+   :'NAM LOADED • ready — use SWITCH to activate NAM');
+  if(namSourceRequested){
+   namSourceRequested=false;
+   setNamAmpMode(true);
+   refreshAllBypass();
+   refreshNamBypass();
+   setText($('modelStatus'),'NAM ACTIVE • '+(String($('fileName')?.textContent||'model')));
+  }else{
+   refreshStatusIndicators();
+  }
+  return true;
+ }catch(err){
+  namModelLoaded=false;namSourceActive=false;namMode=false;namPending=false;
+  const msg=String(err?.stack||err?.message||err||'unknown error');
+  setText($('modelStatus'),'NAM MODEL ERROR • '+msg);
+  setText($('engine'),'NAM ERROR');
+  refreshStatusIndicators();
+  return false;
+ }
 }
+
 function refreshFx(){
  if(!ctx)return;
  const d=state.delay/100,r=state.reverb/100,m=selectedFxMode,q=moduleBypass.fx?0:1;
@@ -153,7 +119,7 @@ function setNamAmpMode(active){
  }
  refreshDrive();refreshAmpTone();refreshNamBypass();refreshStatusIndicators();
 }
-function toggleAmpSource(){
+async function toggleAmpSource(){
  if(!running){
   setText($('modelStatus'),'Start Audio first');
   return;
@@ -162,14 +128,20 @@ function toggleAmpSource(){
   setText($('modelStatus'),'NO NAM MODEL • choose a .NAM file first');
   return;
  }
- if(!namModelLoaded||!namReady){
+ if(!namEngine||!namReady){
   namSourceRequested=true;
-  setText($('modelStatus'),'NAM REQUESTED • waiting for NAM WASM/model…');
+  setText($('modelStatus'),'NAM REQUESTED • loading NAM engine…');
   refreshStatusIndicators();
   return;
  }
- namSourceRequested=false;
+ if(!namModelLoaded){
+  namSourceRequested=true;
+  setText($('modelStatus'),'NAM REQUESTED • loading model…');
+  await loadNamModel(namModelJson);
+  return;
+ }
  if(moduleBypass.amp)moduleBypass.amp=false;
+ namSourceRequested=false;
  setNamAmpMode(!namMode);
  refreshAllBypass();
  refreshNamBypass();
@@ -515,10 +487,10 @@ document.querySelector('#irInput')?.addEventListener('change',async e=>{for(cons
  setFx=wireModelSelector('#fxSelect',['Hall Reverb','Plate Reverb','Room Reverb','Studio Hall'],applyFxModel);setFxMode=applyFxMode;
  document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>applyFxMode(b.textContent.trim())));
 document.querySelectorAll('.module-bypass[data-module]:not(#start)').forEach(icon=>icon.addEventListener('click',()=>toggleModule(icon.dataset.module)));
-  $('sourceSwitch')?.addEventListener('click',toggleAmpSource);
+  $('sourceSwitch')?.addEventListener('click',()=>{toggleAmpSource().catch(err=>{setText($('modelStatus'),'NAM SWITCH ERROR • '+(err?.message||err));refreshStatusIndicators()})});
  $('nam').addEventListener('change',async e=>{
   const f=e.target.files?.[0];if(!f)return;setText($('fileName'),f.name);
-  try{const raw=JSON.parse((await f.text()).replace(/^\uFEFF/,''));const a=String(raw.architecture??raw.model?.architecture??raw.config?.architecture??'').toUpperCase();const isA2=a.includes('A2')||String(raw?.config?.version??'').toUpperCase().includes('A2');const isA1=a.includes('A1')||String(raw?.config?.version??'').toUpperCase().includes('A1');const kind=isA2?'NAM A2':isA1?'NAM A1':a.includes('WAVENET')?'NAM WaveNet':a.includes('LSTM')?'NAM LSTM':raw?.weights?'NAM model':'NAM architecture unknown';namModelJson=JSON.stringify(raw);namPending=true;namSourceActive=false;namSourceRequested=false;refreshStatusIndicators();setText($('modelStatus'),f.name+' • '+kind+' • '+(namReady?'loading real NAM WASM…':'model queued — Start Audio'));if(namReady)loadNamModel(namModelJson)}
+  try{const raw=JSON.parse((await f.text()).replace(/^\uFEFF/,''));const a=String(raw.architecture??raw.model?.architecture??raw.config?.architecture??'').toUpperCase();const isA2=a.includes('A2')||String(raw?.config?.version??'').toUpperCase().includes('A2');const isA1=a.includes('A1')||String(raw?.config?.version??'').toUpperCase().includes('A1');const kind=isA2?'NAM A2':isA1?'NAM A1':a.includes('WAVENET')?'NAM WaveNet':a.includes('LSTM')?'NAM LSTM':raw?.weights?'NAM model':'NAM architecture unknown';namModelJson=JSON.stringify(raw);namPending=true;namSourceActive=false;namSourceRequested=false;refreshStatusIndicators();setText($('modelStatus'),f.name+' • '+kind+' • '+(namEngine?'loading NAM…':'model queued — Start Audio'));if(namEngine&&namReady)await loadNamModel(namModelJson)}
   catch{namModelJson='';namPending=false;namSourceActive=false;refreshStatusIndicators();setText($('modelStatus'),'INVALID NAM • JSON parse failed')}
  });
  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvent=e;$('install').hidden=false});
