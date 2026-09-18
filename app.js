@@ -507,7 +507,7 @@ async function loadIRFile(file){
  if(window.__SOLAR_VST3__){
   try{
    const bytes=new Uint8Array(await file.arrayBuffer());
-   SAMFUI(101,-1,btoa(String.fromCharCode(...bytes)));
+   SAMFUI(101,-1,(window.__SOLAR_B64__||((x)=>{let s='';for(let i=0;i<x.length;i+=0x8000)s+=String.fromCharCode(...x.subarray(i,i+0x8000));return btoa(s)}))(bytes));
    selectedCab=file.name;setText($('cabModel'),formatIRName(file.name));setText($('irStatus'),'CUSTOM • sending to native DSP');
   }catch(e){setText($('irStatus'),'IR LOAD ERROR')}
   return;
