@@ -30,11 +30,11 @@ async function initNam(){
    if(d.type==='modelLoaded'){namModelLoaded=Boolean(d.success&&d.hasModel);setNamAmpMode(namModelLoaded);setText($('modelStatus'),namModelLoaded?'NAM LOADED • AMP/NAM switch ready • waiting for DSP':'NAM MODEL LOAD FAILED');}
    if(d.type==='processing'&&namModelLoaded){setText($('modelStatus'),'NAM ACTIVE • real WASM inference • '+d.blocks+' blocks');setText($('engine'),'NAM WASM')}
    if(d.type==='processError'){namModelLoaded=false;setNamAmpMode(false);setText($('modelStatus'),'NAM DSP ERROR • '+(d.message||'processing failed'));setText($('engine'),'NAM WASM ERROR');refreshDrive();refreshNamBypass()}
-   if(d.type==='error'||d.type==='modelError'){namReady=false;namModelLoaded=false;setNamAmpMode(false);setText($('modelStatus'),'NAM WASM ERROR • '+(d.message||'unknown error'));refreshDrive();refreshNamBypass()}
+   if(d.type==='error'||d.type==='modelError'){namReady=false;namModelLoaded=false;setNamAmpMode(false);const msg=String(d.message||'unknown error');setText($('modelStatus'),'NAM WASM ERROR • '+msg);setText($('engine'),'NAM WASM ERROR');refreshDrive();refreshNamBypass()}
   };
   return true;
  }catch(err){
-  namNode=null;namReady=false;namModelLoaded=false;namMode=false;setNamAmpMode(false);setText($('modelStatus'),'NAM WASM UNAVAILABLE • Web Audio fallback');
+  namNode=null;namReady=false;namModelLoaded=false;namMode=false;setNamAmpMode(false);const msg=String(err?.message||err||'unknown error');setText($('modelStatus'),'NAM WASM UNAVAILABLE • '+msg);setText($('engine'),'NAM WASM ERROR');
   return false;
  }
 }
@@ -225,6 +225,7 @@ async function start(){
   nodes.phaser2=ctx.createBiquadFilter();nodes.phaser2.type='allpass';nodes.phaser2.frequency.value=1800;nodes.phaser2.Q.value=.7;nodes.phaserGain=ctx.createGain();nodes.phaserGain.gain.value=0;
   nodes.phaserLfo=ctx.createOscillator();nodes.phaserLfoGain=ctx.createGain();nodes.phaserLfo.frequency.value=.32;nodes.phaserLfoGain.gain.value=650;nodes.phaserLfo.connect(nodes.phaserLfoGain).connect(nodes.phaser1.frequency);nodes.phaserLfo.connect(nodes.phaserLfoGain).connect(nodes.phaser2.frequency);nodes.phaserLfo.start();
   const dry=ctx.createGain();dry.gain.value=1;master=ctx.createGain();
+  setText($('modelStatus'),namModelJson?'NAM MODEL QUEUED • initializing WASM…':'NAM WASM • initializing…');
   await initNam();
   s.connect(inputAnalyser);s.connect(gate).connect(nodes.odDrive).connect(nodes.odTone).connect(nodes.odLevel).connect(nodes.ampDrive);if(namNode)nodes.ampDrive.connect(namNode).connect(nodes.ampTone);else nodes.ampDrive.connect(nodes.ampTone);nodes.ampTone.connect(nodes.bass).connect(nodes.mid).connect(nodes.treble).connect(nodes.presence).connect(nodes.low).connect(nodes.high).connect(nodes.cab).connect(nodes.cabPresence);
   nodes.cabPresence.connect(nodes.ir).connect(nodes.eqLow).connect(nodes.eqMid).connect(nodes.eqHigh);
