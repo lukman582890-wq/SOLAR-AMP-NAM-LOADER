@@ -68,8 +68,9 @@ jobs:
           $p = $p.Replace('<BINARY_NAME>NeuralAmpModeler</BINARY_NAME>', '<BINARY_NAME>SOLARAMP</BINARY_NAME>')
           $p = $p.Replace('<EXTRA_ALL_DEFS>IGRAPHICS_NANOVG;IGRAPHICS_GL2;GRAYED_ALPHA=0.5f;NAM_ENABLE_A2_FAST</EXTRA_ALL_DEFS>', '<EXTRA_ALL_DEFS>WEBVIEW_EDITOR_DELEGATE;NO_IGRAPHICS;GRAYED_ALPHA=0.5f;NAM_ENABLE_A2_FAST</EXTRA_ALL_DEFS>')
           $p = $p.Replace('<EXTRA_INC_PATHS>', '<EXTRA_INC_PATHS>$(IPLUG2_ROOT)\Dependencies\Extras\nlohmann;$(IPLUG2_ROOT)\Dependencies\Extras\wil;$(IPLUG2_ROOT)\Dependencies\Extras\WebView2\build\native\include;')
-          $p = $p.Replace('<AdditionalDependencies>wininet.lib;comctl32.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>', '<AdditionalDependencies>wininet.lib;comctl32.lib;Shlwapi.lib;ole32.lib;user32.lib;advapi32.lib;shell32.lib;WebView2LoaderStatic.lib;%(AdditionalDependencies)</AdditionalDependencies>')
-          $p = $p.Replace('<AdditionalLibraryDirectories>', '<AdditionalLibraryDirectories>$(IPLUG2_ROOT)\Dependencies\Extras\WebView2\build\native\x64;')
+          $p = [regex]::Replace($p, '<AdditionalIncludeDirectories>', '<AdditionalIncludeDirectories>$(IPLUG2_ROOT)\Dependencies\Extras\wil;$(IPLUG2_ROOT)\Dependencies\Extras\WebView2\build\native\include;')
+          $p = [regex]::Replace($p, '<AdditionalDependencies>', '<AdditionalDependencies>wininet.lib;comctl32.lib;Shlwapi.lib;ole32.lib;user32.lib;advapi32.lib;shell32.lib;WebView2LoaderStatic.lib;')
+          $p = [regex]::Replace($p, '<AdditionalLibraryDirectories>', '<AdditionalLibraryDirectories>$(IPLUG2_ROOT)\Dependencies\Extras\WebView2\build\native\x64;')
           [IO.File]::WriteAllText($props, $p, (New-Object Text.UTF8Encoding($false)))
 
           if ((Select-String -Path $config -Pattern '#define PLUG_UNIQUE_ID ''1YEo''').Count -gt 0) { throw 'Old NAM unique ID still present.' }
@@ -101,10 +102,8 @@ jobs:
 
       - name: Build VST3
         shell: pwsh
-        working-directory: nam-vst3-source
         run: |
-          Set-Location NeuralAmpModeler/scripts
-          .\makedist-win.bat full zip
+          msbuild 'nam-vst3-source\NeuralAmpModeler\projects\NeuralAmpModeler-vst3.vcxproj' /m /p:Configuration=Release /p:Platform=x64 /p:BuildProjectReferences=true
 
       - name: Locate VST3 and install Web UI resources
         shell: pwsh
