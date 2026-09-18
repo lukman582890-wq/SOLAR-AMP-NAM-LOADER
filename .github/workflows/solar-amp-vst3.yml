@@ -6,6 +6,10 @@ on:
   push:
     paths:
       - 'vst3/**'
+      - 'app.js'
+      - 'index.html'
+      - 'styles.css'
+      - 'ir/**'
       - '.github/workflows/solar-amp-vst3.yml'
 
 permissions:
