@@ -28,14 +28,17 @@ function refreshFx(){
 }
 function refreshDrive(){
  if(!ctx)return;
- if(nodes.ampDrive)nodes.ampDrive.curve=moduleBypass.amp?null:curve(Math.max(.03,ampBaseDrive*(.35+state.gain/100*1.45)));
- if(nodes.odDrive)nodes.odDrive.curve=moduleBypass.od?null:curve(Math.max(.01,odBaseDrive*(.25+state.drive/100*1.5)));
+ const ampOn=!moduleBypass.amp;
+ const odOn=!moduleBypass.od&&selectedOd!=='Off';
+ if(nodes.ampDrive)nodes.ampDrive.curve=ampOn?curve(Math.max(.03,ampBaseDrive*(.35+state.gain/100*1.45))):null;
+ if(nodes.odDrive)nodes.odDrive.curve=odOn?curve(Math.max(.01,odBaseDrive*(.25+state.drive/100*1.5))):null;
+ if(nodes.odTone)nodes.odTone.frequency.value=odOn?(350+state.tone*72):20000;
+ if(nodes.odLevel)nodes.odLevel.gain.value=odOn?state.level/100:1;
 }
 function refreshAmpTone(){
  if(!ctx)return;
  const q=moduleBypass.amp?0:1;
- if(nodes.tone)nodes.tone.frequency.value=moduleBypass.amp?20000:(nodes._ampToneFrequency||7000);
- if(nodes.driveLevel)nodes.driveLevel.gain.value=moduleBypass.amp?1:state.level/100;
+ if(nodes.ampTone)nodes.ampTone.frequency.value=moduleBypass.amp?20000:(nodes._ampToneFrequency||7000);
  if(nodes.bass)nodes.bass.gain.value=(state.bass-50)*.24*q;
  if(nodes.mid)nodes.mid.gain.value=(state.mid-50)*.24*q;
  if(nodes.treble)nodes.treble.gain.value=(state.treble-50)*.24*q;
@@ -66,12 +69,10 @@ function toggleModule(name){
 }
 function apply(k,v){
  if(!ctx)return;
- if(k==='gain'||k==='drive')refreshDrive();
+ if(k==='gain'||k==='drive'||k==='tone'||k==='level')refreshDrive();
  if(k==='bass'||k==='mid'||k==='treble'||k==='presence')refreshAmpTone();
  if(k==='eqLow'||k==='eqMid'||k==='eqHigh')refreshEq();
  if(k==='master'&&master)master.gain.value=v/100;
- if(k==='tone'&&nodes.tone){nodes._ampToneFrequency=1800+v*110;refreshAmpTone();}
- if(k==='level'&&nodes.driveLevel)nodes.driveLevel.gain.value=moduleBypass.amp?1:v/100;
  if(k==='low'&&nodes.low)nodes.low.frequency.value=40+v*1.2;
  if(k==='high'&&nodes.high)nodes.high.frequency.value=4000+v*60;
  if(k==='delay'||k==='reverb')refreshFx();
@@ -112,9 +113,10 @@ async function start(){
   inputAnalyser=ctx.createAnalyser();outputAnalyser=ctx.createAnalyser();inputAnalyser.fftSize=outputAnalyser.fftSize=2048;
   const gate=ctx.createDynamicsCompressor();gate.threshold.value=-42;gate.ratio.value=12;gate.attack.value=.003;gate.release.value=.12;
   nodes.odDrive=ctx.createWaveShaper();nodes.odDrive.oversample='4x';
+  nodes.odTone=ctx.createBiquadFilter();nodes.odTone.type='lowpass';nodes.odTone.frequency.value=3950;
+  nodes.odLevel=ctx.createGain();nodes.odLevel.gain.value=.72;
   nodes.ampDrive=ctx.createWaveShaper();nodes.ampDrive.oversample='4x';
-  nodes.tone=ctx.createBiquadFilter();nodes.tone.type='lowpass';nodes.tone.frequency.value=7000;nodes._ampToneFrequency=7000;
-  nodes.driveLevel=ctx.createGain();nodes.driveLevel.gain.value=.72;
+  nodes.ampTone=ctx.createBiquadFilter();nodes.ampTone.type='lowpass';nodes.ampTone.frequency.value=7000;nodes._ampToneFrequency=7000;
   nodes.bass=ctx.createBiquadFilter();nodes.bass.type='lowshelf';nodes.bass.frequency.value=140;
   nodes.mid=ctx.createBiquadFilter();nodes.mid.type='peaking';nodes.mid.frequency.value=900;nodes.mid.Q.value=.8;
   nodes.treble=ctx.createBiquadFilter();nodes.treble.type='highshelf';nodes.treble.frequency.value=2800;
@@ -136,7 +138,7 @@ async function start(){
   nodes.phaser2=ctx.createBiquadFilter();nodes.phaser2.type='allpass';nodes.phaser2.frequency.value=1800;nodes.phaser2.Q.value=.7;nodes.phaserGain=ctx.createGain();nodes.phaserGain.gain.value=0;
   nodes.phaserLfo=ctx.createOscillator();nodes.phaserLfoGain=ctx.createGain();nodes.phaserLfo.frequency.value=.32;nodes.phaserLfoGain.gain.value=650;nodes.phaserLfo.connect(nodes.phaserLfoGain).connect(nodes.phaser1.frequency);nodes.phaserLfo.connect(nodes.phaserLfoGain).connect(nodes.phaser2.frequency);nodes.phaserLfo.start();
   const dry=ctx.createGain();dry.gain.value=1;master=ctx.createGain();
-  s.connect(inputAnalyser);s.connect(gate).connect(nodes.odDrive).connect(nodes.ampDrive).connect(nodes.tone).connect(nodes.driveLevel).connect(nodes.bass).connect(nodes.mid).connect(nodes.treble).connect(nodes.presence).connect(nodes.low).connect(nodes.high).connect(nodes.cab).connect(nodes.cabPresence);
+  s.connect(inputAnalyser);s.connect(gate).connect(nodes.odDrive).connect(nodes.odTone).connect(nodes.odLevel).connect(nodes.ampDrive).connect(nodes.ampTone).connect(nodes.bass).connect(nodes.mid).connect(nodes.treble).connect(nodes.presence).connect(nodes.low).connect(nodes.high).connect(nodes.cab).connect(nodes.cabPresence);
   nodes.cabPresence.connect(nodes.ir).connect(nodes.eqLow).connect(nodes.eqMid).connect(nodes.eqHigh);
   nodes.eqHigh.connect(dry).connect(master);
   nodes.eqHigh.connect(delay).connect(nodes.dw).connect(master);
@@ -259,10 +261,12 @@ function applyEqModel(name){
   'Mid Focus':{bass:-2,mid:5,treble:-1,d:'M0 62 C55 60 95 48 150 30 C205 48 245 59 300 58'}
  };
  const p=profiles[name]||profiles.Default;
- if(ctx)refreshEq();
  eqGraph={low:p.bass,mid:p.mid,high:p.treble};
- state.eqLow=50+p.bass/.24;state.eqMid=50+p.mid/.24;state.eqHigh=50+p.treble/.24;
- knobSetters.eqLow?.(state.eqLow);knobSetters.eqHigh?.(state.eqHigh);updateEqGraph();
+ state.eqLow=Math.max(0,Math.min(100,50+p.bass/.24));
+ state.eqMid=Math.max(0,Math.min(100,50+p.mid/.24));
+ state.eqHigh=Math.max(0,Math.min(100,50+p.treble/.24));
+ knobSetters.eqLow?.(state.eqLow);knobSetters.eqMid?.(state.eqMid);knobSetters.eqHigh?.(state.eqHigh);
+ if(ctx)refreshEq();else updateEqGraph();
 }
 function applyOdModel(name){
  selectedOd=name;const profiles={'Tube Screamer':.34,'Tight OD':.48,'Off':.01};odBaseDrive=profiles[name]??.01;
