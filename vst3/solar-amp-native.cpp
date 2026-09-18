@@ -65,7 +65,8 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
   GetParam(kFXReverb)->InitDouble("FX Reverb", 22.0, 0.0, 100.0, 1.0);
   GetParam(kODActive)->InitBool("OD Active", true);
   GetParam(kFXActive)->InitBool("FX Active", true);
-  GetParam(kFXMode)->InitEnum("FX Mode", 1, {"DELAY", "REVERB", "CHORUS", "PHASER", "TREMOLO"});
+  GetParam(kFXMode)->InitEnum("FX Mode", 0, {"DELAY", "REVERB", "CHORUS", "PHASER", "TREMOLO"});
+  GetParam(kAmpModel)->InitEnum("AMP Model", 0, {"British 800", "American Clean", "Modern 5150"});
 
   mNoiseGateTrigger.AddListener(&mNoiseGateGain);
 
@@ -136,9 +137,12 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   }
 
   const bool nativeAmpBypass = mNativeAmpBypass.load();
-  if (!nativeAmpBypass) _ApplyDSPStaging();
-  const bool noiseGateActive = !nativeAmpBypass && GetParam(kNoiseGateActive)->Value();
-  const bool toneStackActive = !nativeAmpBypass && GetParam(kEQActive)->Value();
+  const bool namActive = mNamActive.load() && mModel != nullptr;
+  // Staging must continue even while AMP is bypassed so CAB/IR/model changes do
+  // not get stuck waiting for the next un-bypass.
+  _ApplyDSPStaging();
+  const bool noiseGateActive = GetParam(kNoiseGateActive)->Value();
+  const bool toneStackActive = GetParam(kEQActive)->Value();
 
   // Noise gate trigger
   sample** triggerOutput = mInputPointers;
@@ -157,11 +161,43 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   }
 
   if (nativeAmpBypass)
-    _FallbackDSP(mInputPointers, mOutputPointers, numChannelsInternal, numFrames);
-  else if (mModel != nullptr)
-    mModel->process(triggerOutput, mOutputPointers, nFrames);
-  else
+  {
+    // AMP bypass is transparent but leaves OD/CAB/EQ/FX in the chain.
     _FallbackDSP(triggerOutput, mOutputPointers, numChannelsInternal, numFrames);
+  }
+  else if (namActive)
+  {
+    mModel->process(triggerOutput, mOutputPointers, nFrames);
+  }
+  else
+  {
+    // Native SOLAR AMP legacy stage. This is deliberately simple and stable:
+    // profile-dependent pre-gain + soft clipping, followed by the shared tone
+    // stack below. The NAM source is completely separate from this path.
+    const double gain = GetParam(kInputLevel)->GetNormalized();
+    const int profile = GetParam(kAmpModel)->Int();
+    const double profileDrive = profile == 1 ? 0.38 : (profile == 2 ? 1.65 : 1.05);
+    const double amount = 0.35 + gain * 5.0 * profileDrive;
+    const double norm = std::tanh(std::max(0.35, amount));
+    for (size_t s = 0; s < numFrames; ++s)
+    {
+      const float x = triggerOutput[0][s];
+      const float clipped = static_cast<float>(std::tanh(x * amount) / norm);
+      mAmpState += 0.18f * (clipped - mAmpState);
+      mOutputArray[0][s] = mAmpState;
+    }
+    // Presence is a native post-amp high-frequency tilt.
+    const double presence = (GetParam(kAmpPresence)->Value() - 50.0) / 50.0;
+    const double pGain = std::pow(10.0, presence * 6.0 / 20.0);
+    const double pAlpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * 3200.0 / sampleRate);
+    float pState = 0.0f;
+    for (size_t s = 0; s < numFrames; ++s)
+    {
+      const float x = mOutputArray[0][s];
+      pState += static_cast<float>(pAlpha) * (x - pState);
+      mOutputArray[0][s] = pState * static_cast<float>(pGain) + x - pState;
+    }
+  }
   // Apply the noise gate after the NAM
   sample** gateGainOutput =
     noiseGateActive ? mNoiseGateGain.Process(mOutputPointers, numChannelsInternal, numFrames) : mOutputPointers;
@@ -204,33 +240,73 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
     }
   }
 
-  // Native delay/reverb/effects stage.
+  // Native delay / reverb / modulation FX. Every mode has a real,
+  // allocation-free DSP path and all paths are bypassable from the UI.
   if (GetParam(kFXActive)->Bool() && !mDelayBuffer.empty())
   {
     const int mode = GetParam(kFXMode)->Int();
     const double wetDelay = GetParam(kFXDelay)->Value() / 100.0;
     const double wetReverb = GetParam(kFXReverb)->Value() / 100.0;
-    const size_t delaySamples = std::min(mDelayBuffer.size() - 1,
-      static_cast<size_t>((0.08 + wetDelay * 0.52) * sampleRate));
-    const size_t reverbSamples = std::min(mReverbBuffer.size() - 1,
-      static_cast<size_t>(0.23 * sampleRate));
+    const double sr = sampleRate;
+    const double baseDelay = 0.08 + wetDelay * 0.52;
+    const size_t reverbSamples = std::min(mReverbBuffer.size() - 1, static_cast<size_t>(0.23 * sr));
     for (size_t s = 0; s < numFrames; ++s)
     {
       const float x = hpfPointers[0][s];
-      const size_t dp = (mDelayWritePos + mDelayBuffer.size() - delaySamples) % mDelayBuffer.size();
-      const float delayed = mDelayBuffer[dp];
-      const size_t rp = (mReverbWritePos + mReverbBuffer.size() - reverbSamples) % mReverbBuffer.size();
-      const float reverbed = mReverbBuffer[rp];
       float y = x;
-      if (mode == 0) y += delayed * static_cast<float>(wetDelay * 0.55);
-      else if (mode == 1) y += reverbed * static_cast<float>(wetReverb * 0.60);
-      else if (mode == 2) y += delayed * static_cast<float>(wetDelay * 0.22);
-      else if (mode == 3) y += (delayed - reverbed) * static_cast<float>(wetReverb * 0.30);
-      else y *= static_cast<float>(1.0 - wetReverb * 0.35);
-      mDelayBuffer[mDelayWritePos] = x + delayed * 0.28f;
-      mReverbBuffer[mReverbWritePos] = x + reverbed * static_cast<float>(0.68 * wetReverb);
-      mDelayWritePos = (mDelayWritePos + 1) % mDelayBuffer.size();
-      mReverbWritePos = (mReverbWritePos + 1) % mReverbBuffer.size();
+
+      if (mode == 0 || mode == 1)
+      {
+        const size_t delaySamples = std::min(mDelayBuffer.size() - 1, static_cast<size_t>(baseDelay * sr));
+        const size_t dp = (mDelayWritePos + mDelayBuffer.size() - delaySamples) % mDelayBuffer.size();
+        const size_t rp = (mReverbWritePos + mReverbBuffer.size() - reverbSamples) % mReverbBuffer.size();
+        const float delayed = mDelayBuffer[dp];
+        const float reverbed = mReverbBuffer[rp];
+        if (mode == 0) y += delayed * static_cast<float>(wetDelay * 0.65);
+        else y += reverbed * static_cast<float>(wetReverb * 0.70);
+        mDelayBuffer[mDelayWritePos] = x + delayed * 0.30f;
+        mReverbBuffer[mReverbWritePos] = x + reverbed * static_cast<float>(0.72 * wetReverb);
+        mDelayWritePos = (mDelayWritePos + 1) % mDelayBuffer.size();
+        mReverbWritePos = (mReverbWritePos + 1) % mReverbBuffer.size();
+      }
+      else if (mode == 2)
+      {
+        // Chorus: 8..28 ms modulated delay.
+        const double lfo = 0.5 + 0.5 * std::sin(mChorusPhase);
+        const size_t delaySamples = std::min(mDelayBuffer.size() - 2,
+          static_cast<size_t>((0.008 + lfo * 0.020) * sr));
+        const size_t dp = (mDelayWritePos + mDelayBuffer.size() - delaySamples) % mDelayBuffer.size();
+        y += mDelayBuffer[dp] * static_cast<float>(0.55 * wetReverb);
+        mDelayBuffer[mDelayWritePos] = x;
+        mDelayWritePos = (mDelayWritePos + 1) % mDelayBuffer.size();
+        mChorusPhase += 2.0 * 3.14159265358979323846 * 0.8 / sr;
+        if (mChorusPhase > 2.0 * 3.14159265358979323846) mChorusPhase -= 2.0 * 3.14159265358979323846;
+      }
+      else if (mode == 3)
+      {
+        // Two-stage all-pass phaser with a slow LFO.
+        const double lfo = 0.5 + 0.5 * std::sin(mChorusPhase * 0.4);
+        const double freq = 350.0 + lfo * 2200.0;
+        const double t = std::tan(3.14159265358979323846 * freq / sr);
+        const float a = static_cast<float>((1.0 - t) / (1.0 + t));
+        const float in = x;
+        const float y1 = -a * in + mPhaserState1;
+        mPhaserState1 = in + a * y1;
+        const float y2 = -a * y1 + mPhaserState2;
+        mPhaserState2 = y1 + a * y2;
+        y += (y2 - x) * static_cast<float>(0.55 * wetReverb);
+        mChorusPhase += 2.0 * 3.14159265358979323846 * 0.25 / sr;
+        if (mChorusPhase > 2.0 * 3.14159265358979323846) mChorusPhase -= 2.0 * 3.14159265358979323846;
+      }
+      else
+      {
+        // Tremolo.
+        const double lfo = 0.5 + 0.5 * std::sin(mTremoloPhase);
+        const float depth = static_cast<float>(0.15 + wetReverb * 0.75);
+        y *= static_cast<float>(1.0 - depth * lfo);
+        mTremoloPhase += 2.0 * 3.14159265358979323846 * 4.5 / sr;
+        if (mTremoloPhase > 2.0 * 3.14159265358979323846) mTremoloPhase -= 2.0 * 3.14159265358979323846;
+      }
       hpfPointers[0][s] = y;
     }
   }
@@ -264,6 +340,11 @@ void NeuralAmpModeler::OnReset()
   mODToneState = 0.0f;
   mEQLowState = 0.0f;
   mEQHighState = 0.0f;
+  mAmpState = 0.0f;
+  mPhaserState1 = 0.0f;
+  mPhaserState2 = 0.0f;
+  mChorusPhase = 0.0;
+  mTremoloPhase = 0.0;
   mInputSender.Reset(sampleRate);
   mOutputSender.Reset(sampleRate);
   // If there is a model or IR loaded, they need to be checked for resampling.
@@ -404,7 +485,12 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
       return true;
     }
     case 102:
+      // AMP module bypass: 1 = transparent bypass, 0 = process selected source.
       mNativeAmpBypass = dataSize > 0 && pData && (*reinterpret_cast<const uint8_t*>(pData) != 0);
+      return true;
+    case 103:
+      // Source selector: 1 = NAM, 0 = native legacy AMP.
+      mNamActive = dataSize > 0 && pData && (*reinterpret_cast<const uint8_t*>(pData) != 0);
       return true;
     default: return false;
   }
