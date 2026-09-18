@@ -1,228 +1,308 @@
-/* SOLAR AMP native VST3 UI bridge.
-   IMPORTANT: this file never creates Web Audio. Cubase owns the audio stream and
-   the C++ DSP owns OD/AMP/NAM/CAB/EQ/FX. The WebView is only the control surface. */
-(() => {
-  const $ = id => document.getElementById(id);
-  const state = {gain:25,bass:100,mid:50,treble:50,presence:50,master:100,drive:35,tone:50,level:72,eqLow:50,eqMid:50,eqHigh:50,delay:28,reverb:22};
-  const bypass = {amp:false,od:false,eq:false,cab:false,fx:false};
-  let namLoaded=false, namActive=false;
-  let selectedAmp='British 800', selectedOd='Tube Screamer', selectedEq='Default', selectedCab='6100_ZCB_57_API', selectedFx='Hall Reverb', selectedFxMode='DELAY';
-  let knobSetters={}; let irNames=[];
-  const ampModels=['British 800','American Clean','Modern 5150'];
-  const odModels=['Tube Screamer','Tight OD','Off'];
-  const eqModels=['Default','V-Curve','Mid Focus'];
-  const cabModels=['6100_ZCB_57_API','6100_ZCB_57_NV','6100_ZCB_57OFF_API','6100_ZCB_57OFF_NV','6100_ZCB_201_API','6100_ZCB_201_NV','6100_ZCB_421_API','6100_ZCB_421_NV','6100_ZCB_906_API','6100_ZCB_906_NV','6505_ZCB_57_API','6505_ZCB_57_NV','6505_ZCB_57OFF_API','6505_ZCB_57OFF_NV','6505_ZCB_201_API','6505_ZCB_201_NV','6505_ZCB_421_API','6505_ZCB_421_NV','6505_ZCB_906_API','6505_ZCB_906_NV'];
-  const fxModels=['Hall Reverb','Plate Reverb','Room Reverb','Studio Hall'];
-  const fxModes=['DELAY','REVERB','CHORUS','PHASER','TREMOLO'];
-  const presets=[
-    {name:'Default Preset',amp:'British 800',od:'Tube Screamer',eq:'Default',cab:'6100_ZCB_57_API',fx:'Hall Reverb',fxMode:'REVERB'},
-    {name:'Clean Glass',amp:'American Clean',od:'Off',eq:'Default',cab:'6100_ZCB_421_API',fx:'Plate Reverb',fxMode:'REVERB'},
-    {name:'Modern High Gain',amp:'Modern 5150',od:'Tight OD',eq:'V-Curve',cab:'6505_ZCB_57_API',fx:'Studio Hall',fxMode:'REVERB'}
-  ];
-  let presetIndex=0;
+let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,raf,installEvent;let namNode=null,namReady=false,namModelLoaded=false,namMode=false,namSourceActive=false,namSourceRequested=false,namPending=false,namModelJson='';const moduleBypass={amp:false,od:false,eq:false,cab:false,fx:false};let eqGraph={low:0,mid:0,high:0};
+const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const state={gain:25,bass:100,mid:50,treble:50,presence:50,master:100,drive:35,tone:50,level:72,mic:50,low:50,high:70,delay:28,reverb:22,eqLow:50,eqMid:50,eqHigh:50};
+const presets=[
+ {name:'Default Preset',amp:'British 800',od:'Tube Screamer',cab:'6100_ZCB_57_API',fx:'Hall Reverb',fxMode:'REVERB'},
+ {name:'Clean Glass',amp:'American Clean',od:'Off',cab:'6100_ZCB_421_API',fx:'Plate Reverb',fxMode:'REVERB'},
+ {name:'Modern High Gain',amp:'Modern 5150',od:'Tight OD',cab:'6505_ZCB_57_API',fx:'Studio Hall',fxMode:'REVERB'}
+];
+let presetIndex=0;let savedPresets=[];try{savedPresets=JSON.parse(localStorage.getItem('solarSavedPresets')||'[]');if(!Array.isArray(savedPresets))savedPresets=[]}catch{savedPresets=[]}let selectedAmp='British 800',selectedOd='Tube Screamer',selectedEq='Default',selectedCab='4x12 V30',selectedFx='Hall Reverb',selectedFxMode='DELAY';let setAmp,setOd,setEq,setCab,setFx,setFxMode;let knobSetters={};let ampBaseDrive=.52,odBaseDrive=.34,fxBaseDelay=.42,fxBaseReverb=.30;let irBuffer=null,irName='';let irFiles=new Map();let pendingIRFiles=[];let identityIRBuffer=null;const irPackV1=['6100_ZCB_57_API','6100_ZCB_57_NV','6100_ZCB_57OFF_API','6100_ZCB_57OFF_NV','6100_ZCB_201_API','6100_ZCB_201_NV','6100_ZCB_421_API','6100_ZCB_421_NV','6100_ZCB_906_API','6100_ZCB_906_NV','6505_ZCB_57_API','6505_ZCB_57_NV','6505_ZCB_57OFF_API','6505_ZCB_57OFF_NV','6505_ZCB_201_API','6505_ZCB_201_NV','6505_ZCB_421_API','6505_ZCB_421_NV','6505_ZCB_906_API','6505_ZCB_906_NV'];
+const $=id=>document.getElementById(id);
+function curve(k){const c=new Float32Array(44100);for(let i=0;i<c.length;i++){const x=i*2/c.length-1;c[i]=Math.tanh(k*x*4)/Math.tanh(k*4)}return c}
+function setText(el,t){if(el)el.textContent=t}
+function formatIRName(name){
+ const m=String(name||'').match(/^(6100|6505)_ZCB_(57OFF|57|201|421|906)_(API|NV)$/i);
+ if(!m)return String(name||'').replace(/\.(wav|aiff?|flac)$/i,'');
+ return m[1].toUpperCase()+' • '+m[2].toUpperCase().replace('57OFF','57 OFF')+' • '+m[3].toUpperCase();
+}
+function refreshNamBypass(){const active=!!(namMode&&!moduleBypass.amp);window.__solarNamActive=active;const b=$('sourceSwitch');if(b){b.classList.toggle('nam-selected',active);b.textContent=active?'SWITCH → AMP':'SWITCH → NAM';}}
+let namRequestSeq=1,namRequestMap=new Map(),namEnginePromise=null;
+function namRequest(message,transfer=[]){
+ if(!namNode)return Promise.reject(new Error('NAM AudioWorklet node is not initialized'));
+ const requestId=namRequestSeq++;
+ return new Promise((resolve,reject)=>{
+  namRequestMap.set(requestId,{resolve,reject});
+  try{namNode.port.postMessage({...message,requestId},transfer)}catch(error){namRequestMap.delete(requestId);reject(error)}
+ });
+}
+async function initNamEngine(){
+ if(namNode&&namReady)return true;
+ if(!ctx)throw new Error('AudioContext is not initialized');
+ if(namEnginePromise)return namEnginePromise;
+ namEnginePromise=(async()=>{
+  try{
+   setText($('modelStatus'),'NAM ENGINE • loading official WASM…');
+   await ctx.audioWorklet.addModule('./nam-worklet.js?v=60');
+   const response=await fetch('./nam-engine.wasm?v=60',{cache:'no-store'});
+   if(!response.ok)throw new Error('nam-engine.wasm HTTP '+response.status);
+   const wasmBytes=await response.arrayBuffer();
+   namNode=new AudioWorkletNode(ctx,'nam-processor',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1],channelCount:1,channelCountMode:'explicit'});
+   namNode.port.onmessage=e=>{
+    const d=e.data||{};
+    if(d.type!=='response')return;
+    const pending=namRequestMap.get(d.requestId);if(!pending)return;
+    namRequestMap.delete(d.requestId);
+    if(d.ok)pending.resolve(d.modelInfo);else pending.reject(new Error(d.error||'NAM request failed'));
+   };
+   await namRequest({type:'init',wasmBytes},[wasmBytes]);
+   namReady=true;
+   setText($('engine'),'NAM WASM READY');
+   return true;
+  }catch(error){
+   namNode=null;namReady=false;namModelLoaded=false;namMode=false;namSourceActive=false;
+   const msg=String(error?.stack||error?.message||error||'unknown error');
+   setText($('modelStatus'),'NAM ENGINE ERROR • '+msg);setText($('engine'),'NAM ERROR');refreshStatusIndicators();
+   throw error;
+  }finally{namEnginePromise=null}
+ })();
+ return namEnginePromise;
+}
+async async function loadNamModel(json){if(!json)throw Error('NAM model is empty');namModelJson=String(json);namPending=true;setText($('modelStatus'),'NAM MODEL • sending to native DSP…');try{SAMFUI(100,-1,namModelJson);namModelLoaded=true;namReady=true;namPending=false;setText($('modelStatus'),'NAM MODEL • sent to native DSP');refreshStatusIndicators();return true}catch(e){namModelLoaded=false;namReady=false;setText($('modelStatus'),'NAM MODEL ERROR • '+(e?.message||e));refreshStatusIndicators();throw e}}
 
-  const send=(m)=>{ try{ if(window.IPlugSendMsg) window.IPlugSendMsg(m); }catch(e){ console.error(e); } };
-  const b64=buf=>{let s='',a=new Uint8Array(buf);for(let i=0;i<a.length;i+=0x8000)s+=String.fromCharCode(...a.subarray(i,i+0x8000));return btoa(s)};
-  const byte64=v=>btoa(String.fromCharCode(v?1:0));
-  const u8b64=v=>btoa(String.fromCharCode(Number(v)&255));
-  const sendParam=(idx,v)=>send({msg:'SPVFUI',paramIdx:idx,value:Math.max(0,Math.min(1,Number(v)))});
-  const sendModule=(module,on)=>send({msg:'SAMFUI',msgTag:110,ctrlTag:{od:0,amp:1,eq:2,cab:3,fx:4}[module],data:byte64(on)});
-  const setStatus=t=>{if($('modelStatus'))$('modelStatus').textContent=t};
-  window.SOLARSetStatus=setStatus;
-  window.SAMFD=(msgTag,dataSize,msg)=>{ if(msgTag===-1){try{const j=JSON.parse(atob(msg||''));if(j.id==='solar-status')setStatus(j.message||'');}catch{}} };
-  window.SPVFD=(idx,val)=>{};
-  window.__SOLAR_VST3__=true;
+function refreshFx(){SPVFUI(20,state.delay/100);SPVFUI(21,state.reverb/100);SPVFUI(23,moduleBypass.fx?0:1);const modes={DELAY:0,REVERB:1,CHORUS:2,PHASER:3,TREMOLO:4};SPVFUI(24,(modes[selectedFxMode]??0)/4)}
+function refreshDrive(){SPVFUI(14,state.drive/100);SPVFUI(15,state.tone/100);SPVFUI(16,state.level/100)}
+function setNamAmpMode(active){
+ namMode=Boolean(active)&&Boolean(namModelLoaded)&&Boolean(namReady);
+ namSourceActive=Boolean(active)&&Boolean(namModelLoaded);
+ if(namModelLoaded)moduleBypass.amp=false;
+ const section=$('ampModule');
+ if(section){
+  section.classList.toggle('nam-active',namMode);
+  const select=$('ampSelect');
+  select?.querySelectorAll('button').forEach(b=>b.disabled=namMode);
+  const knobs=$('amp');
+  if(knobs){
+   knobs.style.pointerEvents=namMode?'none':'';
+   knobs.style.opacity=namMode?'.45':'';
+   knobs.setAttribute('aria-disabled',String(namMode));
+  }
+  const label=$('ampModel');
+  if(label)label.title=namMode?'NAM mode active — click AMP power to return to the legacy AMP':'';
+  const power=$('start');
+  if(power){
+   power.setAttribute('aria-label',moduleBypass.amp?'Enable AMP/NAM signal':'Bypass AMP/NAM signal');
+   power.setAttribute('aria-pressed',String(moduleBypass.amp));
+  }
+ }
+ refreshDrive();refreshAmpTone();refreshNamBypass();refreshStatusIndicators();
+}
+async async function toggleAmpSource(){if(!namModelLoaded||!namModelJson){setText($('modelStatus'),'NO NAM MODEL • choose a .NAM file first');return}const next=!namMode;namMode=next;namSourceActive=next;SAMFUI(103,-1,byte64(next));if(next&&moduleBypass.amp){moduleBypass.amp=false;SAMFUI(102,-1,byte64(false))}refreshAllBypass();refreshNamBypass();setText($('modelStatus'),next?'NAM ACTIVE • native DSP':'AMP ACTIVE • native legacy amp')}
+function refreshAmpTone(){SPVFUI(0,Math.max(0,Math.min(1,state.gain/100)));SPVFUI(2,state.bass/100);SPVFUI(3,state.mid/100);SPVFUI(4,state.treble/100);SPVFUI(13,state.presence/100);SPVFUI(26,state.master/100)}
+function refreshEq(){SPVFUI(17,state.eqLow/100);SPVFUI(18,state.eqMid/100);SPVFUI(19,state.eqHigh/100);eqGraph.low=(state.eqLow-50)*.24;eqGraph.mid=(state.eqMid-50)*.24;eqGraph.high=(state.eqHigh-50)*.24;updateEqGraph()}
+function refreshCab(){SPVFUI(8,moduleBypass.cab?0:1)}
+function refreshStatusIndicators(){
+ const bypassActive=Boolean(moduleBypass.amp);
+ const namActive=!bypassActive&&Boolean(namMode);
+ const ampActive=!bypassActive&&!namActive;
+ const ampEl=$('stateAmp');
+ const ampLabel=ampEl?.querySelector('b');
+ if(ampEl){
+  ampEl.classList.toggle('selected',ampActive||namActive);
+  ampEl.classList.toggle('nam-active',namActive);
+  if(ampLabel)ampLabel.textContent=namActive?'NAM':'AMP';
+ }
+ const bypassEl=$('stateBypass');
+ if(bypassEl)bypassEl.classList.toggle('selected',bypassActive);
+ const switchBtn=$('sourceSwitch');
+ if(switchBtn){
+  const hasModel=Boolean(namModelJson);
+  const loaded=Boolean(namModelLoaded&&namReady);
+  switchBtn.disabled=!hasModel;
+  switchBtn.classList.toggle('nam-selected',namActive);
+  switchBtn.textContent=namActive?'SWITCH → AMP':(namSourceRequested&&!loaded?'WAIT NAM…':'SWITCH → NAM');
+  switchBtn.setAttribute('aria-label',namActive?'Switch active source to legacy AMP':'Switch active source to NAM');
+  switchBtn.title=!hasModel?'Choose a .NAM model first':(namActive?'NAM active — switch to legacy AMP':loaded?'AMP active — switch to NAM':'NAM will activate when the loader finishes');
+ }
+ const chainMap={od:'odModule',amp:'ampModule',cab:'cabModule',eq:'eqModule',fx:'fxModule'};
+ Object.entries(chainMap).forEach(([name,id])=>{
+  const node=document.querySelector('.chain-node[data-target="'+id+'"]');
+  if(!node)return;
+  const active=name==='amp'?(!bypassActive):!moduleBypass[name];
+  node.classList.toggle('active',active);
+  node.classList.toggle('bypassed',!active);
+  node.classList.toggle('nam-active',name==='amp'&&namActive);
+ });
+}
+function refreshAllBypass(){refreshDrive();refreshAmpTone();refreshEq();refreshCab();refreshFx();refreshStatusIndicators()}
+function toggleModule(name){if(!(name in moduleBypass))return;moduleBypass[name]=!moduleBypass[name];const icon=document.querySelector('.module-bypass[data-module="'+name+'"]');if(icon){icon.textContent=moduleBypass[name]?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass[name]);icon.setAttribute('aria-pressed',String(!moduleBypass[name]))}const tags={od:0,amp:1,eq:2,cab:3,fx:4};if(tags[name]!==undefined)SAMFUI(110,tags[name],byte64(!moduleBypass[name]));if(name==='amp')SAMFUI(102,-1,byte64(moduleBypass.amp));if(name==='eq')SPVFUI(7,moduleBypass.eq?0:1);if(name==='cab')SPVFUI(8,moduleBypass.cab?0:1);if(name==='od')SPVFUI(22,moduleBypass.od?0:1);if(name==='fx')SPVFUI(23,moduleBypass.fx?0:1);refreshAllBypass();refreshNamBypass();refreshStatusIndicators()}
+function apply(k,v){
+ if(window.__SOLAR_VST3__){
+  const map={gain:0,bass:2,mid:3,treble:4,presence:13,master:5,drive:14,tone:15,level:16,eqLow:17,eqMid:18,eqHigh:19,delay:20,reverb:21};
+  if(map[k]!==undefined)SPVFUI(map[k],Number(v)/100); return;
+ }
+ if(!ctx)return;
+ if(k==='gain'||k==='drive'||k==='tone'||k==='level')refreshDrive();
+ if(k==='bass'||k==='mid'||k==='treble'||k==='presence')refreshAmpTone();
+ if(k==='eqLow'||k==='eqMid'||k==='eqHigh')refreshEq();
+ if(k==='master'&&master)master.gain.value=v/100;
+ if(k==='low'&&nodes.low)nodes.low.frequency.value=(moduleBypass.amp||namMode)?1:40+v*1.2;
+ if(k==='high'&&nodes.high)nodes.high.frequency.value=(moduleBypass.amp||namMode)?20000:4000+v*60;
+ if(k==='delay'||k==='reverb')refreshFx();
+}
+function makeKnobs(id,names){
+ const root=$(id);if(!root)return;root.innerHTML='';
+ names.forEach(name=>{
+  const key=id==='eq'?'eq'+name.toLowerCase().replace(' ',''):name.toLowerCase().replace(' ','');
+  const d=document.createElement('div');d.className='knob';
+  const f=document.createElement('div');f.className='knobface';
+  const scale=document.createElement('div');scale.className='knobscale';
+  const finger=document.createElement('div');finger.className='fingerpointer';finger.textContent='🖕';
+  f.append(scale,finger);
+  const v=document.createElement('b'),l=document.createElement('small');l.textContent=name;
+  d.append(f,v,l);let value=state[key]??50;
+  function set(x){value=Math.max(0,Math.min(100,Math.round(x)));state[key]=value;v.textContent=value+'%';f.style.setProperty('--pct',value);f.style.setProperty('--angle',(-135+value*2.7)+'deg');apply(key,value)}
+  knobSetters[key]=set;set(value);
+  let sy,sv;
+  f.addEventListener('pointerdown',e=>{e.preventDefault();sy=e.clientY;sv=value;f.setPointerCapture?.(e.pointerId)});
+  f.addEventListener('pointermove',e=>{if(sy!==undefined)set(sv+(sy-e.clientY)*.5)});
+  f.addEventListener('pointerup',()=>sy=undefined);f.addEventListener('pointercancel',()=>sy=undefined);
+  f.addEventListener('wheel',e=>{e.preventDefault();set(value+(e.deltaY<0?2:-2))},{passive:false});
+  root.append(d);
+ });
+}
+function impulse(sec,decay){
+ const b=ctx.createBuffer(2,Math.floor(ctx.sampleRate*sec),ctx.sampleRate);
+ for(let c=0;c<2;c++){const a=b.getChannelData(c);for(let i=0;i<a.length;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/a.length,decay)}
+ return b;
+}
+async async function start(){if(running)return;running=true;namReady=true;$('start')?.classList.add('on');if($('start'))$('start').textContent='👍';$('stopAudio')?.removeAttribute('hidden');setText($('engine'),'NATIVE DSP');setText($('rate'),'HOST');setText($('latency'),'NATIVE');refreshAllBypass();refreshStatusIndicators();setText($('modelStatus'),namModelLoaded?'NATIVE NAM • READY':'NATIVE AMP • READY')}
+function stop(){running=false;namReady=false;namSourceActive=false;$('stopAudio')?.setAttribute('hidden','');$('start')?.classList.remove('on');if($('start'))$('start').textContent='🖕';setText($('engine'),'NATIVE DSP');setText($('rate'),'HOST');setText($('latency'),'NATIVE');refreshStatusIndicators()}
+function tick(){}
+function updatePreset(){
+ const p=presets[presetIndex];setText($('presetName'),String(presetIndex+1).padStart(2,'0')+'  '+p.name);
+ setAmp?.(p.amp);setOd?.(p.od);setEq?.(p.amp==='American Clean'?'Default':p.amp==='Modern 5150'?'V-Curve':'Mid Focus');
+ setCab?.(p.cab);setFx?.(p.fx);setFxMode?.(p.fxMode||'DELAY');
+}
+function cyclePreset(dir){presetIndex=(presetIndex+dir+presets.length)%presets.length;updatePreset()}
+function savePreset(){
+ const name=prompt('Nama preset:',String($('presetName')?.textContent||'My Preset').trim())?.trim();if(!name)return;
+ const p={name,amp:selectedAmp,od:selectedOd,eq:selectedEq,cab:selectedCab||$('cabModel')?.textContent||irPackV1[0],fx:$('fxModel')?.textContent||'Hall Reverb',fxMode:selectedFxMode,state:{...state},bypass:{...moduleBypass},irName:irName||selectedCab};
+ savedPresets=savedPresets.filter(x=>x.name!==name);savedPresets.push(p);localStorage.setItem('solarSavedPresets',JSON.stringify(savedPresets));alert('Preset tersimpan: '+name);
+}
+function loadSavedPreset(p){
+ if(!p)return;
+ Object.assign(state,p.state||{});
+ setAmp?.(p.amp||'British 800');setOd?.(p.od||'Tube Screamer');setEq?.(p.eq||'Default');
+ const savedIR=p.irName||p.cab;
+ if(irPackV1.includes(savedIR))setCab?.(savedIR);
+ else if(irFiles.has(savedIR)){irBuffer=irFiles.get(savedIR).buffer;irName=savedIR;selectedCab=savedIR;setText($('cabModel'),savedIR.replace(/\.(wav|aiff?|flac)$/i,''));setText($('irStatus'),'CUSTOM • '+savedIR);refreshCab()}
+ else setCab?.(p.cab||irPackV1[0]);
+ setFx?.(p.fx||'Hall Reverb');setFxMode?.(p.fxMode||'DELAY');
+ setText($('presetName'),'★  '+p.name);
+ Object.entries(moduleBypass).forEach(([k])=>moduleBypass[k]=Boolean(p.bypass?.[k]));
+ document.querySelectorAll('.module-bypass[data-module]').forEach(icon=>{const n=icon.dataset.module;icon.textContent=moduleBypass[n]?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass[n]);icon.setAttribute('aria-pressed',String(!moduleBypass[n]))});
+ Object.entries(state).forEach(([k,v])=>knobSetters[k]?.(v));
+ applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);applyCabModel(selectedCab);applyFxModel(selectedFx);applyFxMode(selectedFxMode);
+}
+function manageSavedPresets(){
+ if(!savedPresets.length){alert('Belum ada preset tersimpan.');return}
+ const list=savedPresets.map((p,i)=>(i+1)+'. '+p.name).join('\\n');
+ const choice=prompt('SAVED PRESETS\\n\\n'+list+'\\n\\nKetik nomor untuk LOAD, atau D1/D2... untuk DELETE:');
+ if(!choice)return;
+ const m=choice.trim().toUpperCase().match(/^([LD])(\\d+)$/);
+ const n=m?Number(m[2]):Number(choice);
+ if(!Number.isInteger(n)||n<1||n>savedPresets.length){alert('Pilihan tidak valid.');return}
+ if(m?.[1]==='D'){
+  savedPresets.splice(n-1,1);localStorage.setItem('solarSavedPresets',JSON.stringify(savedPresets));alert('Preset dihapus.');return;
+ }
+ loadSavedPreset(savedPresets[n-1]);
+}
+function wireModelSelector(selector,values,onChange){
+ const box=document.querySelector(selector);if(!box)return ()=>{};
+ let i=0;const label=box.querySelector('strong'),buttons=box.querySelectorAll('button');
+ function update(){if(label)label.textContent=selector==='#cabSelect'?formatIRName(values[i]):values[i];onChange?.(values[i],i)}
+ const set=value=>{const n=values.indexOf(value);if(n>=0){i=n;update()}};
+ buttons[0]?.addEventListener('click',()=>{i=(i-1+values.length)%values.length;update()});
+ buttons[1]?.addEventListener('click',()=>{i=(i+1)%values.length;update()});update();return set;
+}
+function updateEqGraph(){
+ const path=$('eqCurve'),fill=$('eqFill'),svg=document.querySelector('.eq-graph svg');if(!path||!svg)return;
+ const y=g=>50-(Math.max(-12,Math.min(12,g))*2.65);
+ const d='M0 '+y(eqGraph.low)+' C55 '+y(eqGraph.low)+' 92 '+y(eqGraph.mid)+' 150 '+y(eqGraph.mid)+' C208 '+y(eqGraph.mid)+' 245 '+y(eqGraph.high)+' 300 '+y(eqGraph.high);
+ path.setAttribute('d',d);
+ if(fill)fill.setAttribute('d',d+' L300 100 L0 100 Z');
+ const pts=[['eqLowPoint',42,eqGraph.low],['eqMidPoint',150,eqGraph.mid],['eqHighPoint',258,eqGraph.high]];
+ pts.forEach(([id,x,g])=>{let q=$(id);if(!q){q=document.createElementNS('http://www.w3.org/2000/svg','circle');q.id=id;q.setAttribute('r','5');q.classList.add('eq-point');svg.append(q)}q.setAttribute('cx',x);q.setAttribute('cy',y(g));});
+}
+function wireEqGraph(){
+ const svg=document.querySelector('.eq-graph svg');if(!svg)return;
+ let active=null;
+ const pointMap={eqLowPoint:'low',eqMidPoint:'mid',eqHighPoint:'high'};
+ const move=e=>{
+  if(!active)return;const r=svg.getBoundingClientRect(),id=active,key=pointMap[id];
+  const yy=Math.max(0,Math.min(100,e.clientY-r.top)),gain=Math.max(-12,Math.min(12,(50-yy)/2.65));
+  eqGraph[key]=gain;
+  if(key==='low')state.eqLow=50+gain/.24;
+  if(key==='mid')state.eqMid=50+gain/.24;
+  if(key==='high')state.eqHigh=50+gain/.24;
+  knobSetters[key==='low'?'eqLow':key==='mid'?'eqMid':'eqHigh']?.(key==='low'?state.eqLow:key==='mid'?state.eqMid:state.eqHigh);
+  updateEqGraph();
+ };
+ svg.addEventListener('pointerdown',e=>{const p=e.target;if(p.id&&pointMap[p.id]){active=p.id;p.setPointerCapture?.(e.pointerId);move(e);e.preventDefault()}});
+ svg.addEventListener('pointermove',move);svg.addEventListener('pointerup',()=>active=null);svg.addEventListener('pointercancel',()=>active=null);
+ updateEqGraph();
+}
+function applyAmpModel(name){selectedAmp=name;const p={'British 800':0,'American Clean':1,'Modern 5150':2}[name]??0;SPVFUI(25,p/2)}
+function applyEqModel(name){
+ selectedEq=name;const profiles={
+  'Default':{bass:0,mid:0,treble:0,d:'M0 54 C55 51 95 45 150 52 C205 59 245 53 300 48'},
+  'V-Curve':{bass:4,mid:-5,treble:4,d:'M0 42 C55 36 100 45 150 70 C200 45 245 35 300 40'},
+  'Mid Focus':{bass:-2,mid:5,treble:-1,d:'M0 62 C55 60 95 48 150 30 C205 48 245 59 300 58'}
+ };
+ const p=profiles[name]||profiles.Default;
+ eqGraph={low:p.bass,mid:p.mid,high:p.treble};
+ state.eqLow=Math.max(0,Math.min(100,50+p.bass/.24));
+ state.eqMid=Math.max(0,Math.min(100,50+p.mid/.24));
+ state.eqHigh=Math.max(0,Math.min(100,50+p.treble/.24));
+ knobSetters.eqLow?.(state.eqLow);knobSetters.eqMid?.(state.eqMid);knobSetters.eqHigh?.(state.eqHigh);
+ if(ctx)refreshEq();else updateEqGraph();
+}
+function applyOdModel(name){selectedOd=name;const p={'Tube Screamer':[35,50,72,true],'Tight OD':[48,58,70,true],'Off':[0,50,100,false]}[name]||[35,50,72,true];state.drive=p[0];state.tone=p[1];state.level=p[2];SPVFUI(14,p[0]/100);SPVFUI(15,p[1]/100);SPVFUI(16,p[2]/100);SPVFUI(22,p[3]?1:0);moduleBypass.od=!p[3];const icon=document.querySelector('.module-bypass[data-module="od"]');if(icon){icon.textContent=moduleBypass.od?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass.od)}}
+async function applyCabModel(name){
+ selectedCab=name;
+ if(window.__SOLAR_VST3__ && irPackV1.includes(name)){
+  try{
+   const r=await fetch('./ir/'+encodeURIComponent(name)+'.wav',{cache:'force-cache'});
+   if(!r.ok)throw new Error('HTTP '+r.status);
+   const bytes=new Uint8Array(await r.arrayBuffer());
+   SAMFUI(101,-1,(window.__SOLAR_B64__||((x)=>btoa(String.fromCharCode(...x))))(bytes));
+   setText($('cabModel'),formatIRName(name));setText($('irStatus'),'PACK V1 • sending to native DSP');
+  }catch(err){setText($('irStatus'),'PACK V1 LOAD ERROR')}
+  return;
+ }
+ if(irPackV1.includes(name)){
+  if(!ctx){setText($('irStatus'),'PACK V1 • READY');return}
+  irBuffer=null;irName='';
+  try{
+   const r=await fetch('./ir/'+encodeURIComponent(name)+'.wav',{cache:'force-cache'});
+   if(!r.ok)throw new Error('HTTP '+r.status);
+   const decoded=await ctx.decodeAudioData(await r.arrayBuffer());
+   irBuffer=decoded;irName=name;irFiles.set(name,{buffer:decoded});renderIRLibrary();
+   setText($('cabModel'),formatIRName(name));setText($('irStatus'),'PACK V1 • '+formatIRName(name));refreshCab();return;
+  }catch(err){
+   setText($('irStatus'),'PACK V1 LOAD ERROR');console.error('IR load failed',name,err);
+  }
+ }
+ if(ctx)refreshCab();
+}
+function renderIRLibrary(){
+ const box=$('irLibrary');if(!box)return;box.innerHTML='';
+ irFiles.forEach((v,name)=>{
+  const b=document.createElement('button');b.type='button';b.className='ir-item';b.textContent=name;b.title=name;
+  b.addEventListener('click',()=>{irBuffer=v.buffer;irName=name;selectedCab=name;setText($('cabModel'),formatIRName(name));setText($('irStatus'),irPackV1.includes(name)?'PACK V1 • '+formatIRName(name):'CUSTOM • '+name);refreshCab()});
+  box.appendChild(b);
+ });
+}
+async async function loadIRFile(file){if(!file)return;try{const u=new Uint8Array(await file.arrayBuffer());let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode(...u.subarray(i,i+0x8000));SAMFUI(101,-1,btoa(s));irName=file.name;selectedCab=file.name;setText($('cabModel'),formatIRName(file.name));setText($('irStatus'),'NATIVE DSP • loading '+file.name)}catch(e){setText($('irStatus'),'IR LOAD ERROR • '+(e?.message||e))}}
+function saveIRLocal(name,buffer){try{const data=buffer.getChannelData(0);const arr=new Float32Array(data);localStorage.setItem('solarLastIRName',name);localStorage.setItem('solarLastIR',btoa(String.fromCharCode(...new Uint8Array(arr.buffer))));}catch{}}
 
-  function refreshIndicators(){
-    const nam=namActive&&!bypass.amp;
-    const amp=$('stateAmp'), bp=$('stateBypass');
-    amp?.classList.toggle('selected',!bypass.amp);
-    amp?.classList.toggle('nam-active',nam);
-    const lab=amp?.querySelector('b'); if(lab)lab.textContent=nam?'NAM':'AMP';
-    bp?.classList.toggle('selected',bypass.amp);
-    const sw=$('sourceSwitch');
-    if(sw){sw.disabled=!namLoaded;sw.textContent=nam?'SWITCH → AMP':'SWITCH → NAM';sw.classList.toggle('nam-selected',nam);}
-    const map={od:'odModule',amp:'ampModule',cab:'cabModule',eq:'eqModule',fx:'fxModule'};
-    Object.entries(map).forEach(([n,id])=>{const node=document.querySelector('.chain-node[data-target="'+id+'"]');node?.classList.toggle('active',!bypass[n]);node?.classList.toggle('bypassed',bypass[n]);});
-  }
+function applyFxModel(name){selectedFx=name;const p={'Hall Reverb':[42,30],'Plate Reverb':[18,38],'Room Reverb':[10,20],'Studio Hall':[32,34]}[name]||[42,30];state.delay=p[0];state.reverb=p[1];refreshFx()}
+function applyFxMode(mode){selectedFxMode=mode;document.querySelectorAll('.fx-modes button').forEach(x=>x.classList.toggle('selected',x.textContent.trim()===mode));refreshFx()}
+function wireUI(){$('start')?.addEventListener('click',()=>{if(!running)start();else toggleModule('amp')});$('stopAudio')?.addEventListener('click',stop);$('presetPrev')?.addEventListener('click',()=>cyclePreset(-1));$('presetNext')?.addEventListener('click',()=>cyclePreset(1));$('savePreset')?.addEventListener('click',savePreset);$('presetMenu')?.addEventListener('click',manageSavedPresets);document.querySelectorAll('.chain-node[data-target]').forEach(n=>n.addEventListener('click',()=>$(n.dataset.target)?.scrollIntoView({behavior:'smooth',block:'center'})));setAmp=wireModelSelector('#ampSelect',['British 800','American Clean','Modern 5150'],applyAmpModel);setOd=wireModelSelector('#odSelect',['Tube Screamer','Tight OD','Off'],applyOdModel);setEq=wireModelSelector('#eqSelect',['Default','V-Curve','Mid Focus'],applyEqModel);wireEqGraph();setCab=wireModelSelector('#cabSelect',irPackV1,applyCabModel);document.querySelector('#irInput')?.addEventListener('change',async e=>{for(const f of [...(e.target.files||[])])await loadIRFile(f);e.target.value=''});renderIRLibrary();setFx=wireModelSelector('#fxSelect',['Hall Reverb','Plate Reverb','Room Reverb','Studio Hall'],applyFxModel);setFxMode=applyFxMode;document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>applyFxMode(b.textContent.trim())));document.querySelectorAll('.module-bypass[data-module]:not(#start)').forEach(icon=>icon.addEventListener('click',()=>toggleModule(icon.dataset.module)));$('sourceSwitch')?.addEventListener('click',()=>toggleAmpSource());$('nam')?.addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;setText($('fileName'),f.name);try{const u=new Uint8Array(await f.arrayBuffer());let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode(...u.subarray(i,i+0x8000));namModelJson=btoa(s);namModelLoaded=false;namReady=true;namPending=true;namMode=false;SAMFUI(100,-1,namModelJson);setText($('modelStatus'),f.name+' • sent to native NAM DSP');refreshStatusIndicators()}catch(e){namModelJson='';setText($('modelStatus'),'NAM LOAD ERROR • '+(e?.message||e))}})}
+window.SOLARSetStatus=t=>setText($('modelStatus'),t);
+wireUI();updatePreset();
+makeKnobs('amp',['GAIN','BASS','MID','TREBLE','PRESENCE','MASTER']);
+makeKnobs('od',['DRIVE','TONE','LEVEL']);
+makeKnobs('eq',['LOW','HIGH']);
+makeKnobs('fx',['DELAY','REVERB']);
 
-  function toggleModule(name){
-    bypass[name]=!bypass[name];
-    const active=!bypass[name];
-    const icon=document.querySelector('.module-bypass[data-module="'+name+'"]');
-    if(icon){icon.textContent=bypass[name]?'🖕':'👍';icon.classList.toggle('bypassed',bypass[name]);icon.setAttribute('aria-pressed',String(active));}
-    // Native DSP gets an immediate dedicated module message. We also update the
-    // VST3 parameter so automation/state remain correct.
-    sendModule(name,active);
-    if(name==='amp'){
-      // AMP bypass must also clear the NAM source selector. Re-enabling AMP does
-      // not implicitly select NAM; the explicit source switch controls that.
-      if(bypass.amp)namActive=false;
-      send({msg:'SAMFUI',msgTag:103,ctrlTag:-1,data:byte64(namActive)});
-      send({msg:'SAMFUI',msgTag:102,ctrlTag:-1,data:byte64(bypass.amp)});
-    }
-    else if(name==='eq')sendParam(7,active?1:0);
-    else if(name==='cab')sendParam(8,active?1:0);
-    else if(name==='od')sendParam(22,active?1:0);
-    else if(name==='fx')sendParam(23,active?1:0);
-    refreshIndicators();
-  }
-
-  async function toggleSource(){
-    if(!namLoaded){setStatus('NO NAM MODEL • choose a .NAM file first');return;}
-    if(bypass.amp)bypass.amp=false;
-    namActive=!namActive;
-    send({msg:'SAMFUI',msgTag:103,ctrlTag:-1,data:byte64(namActive)});
-    send({msg:'SAMFUI',msgTag:102,ctrlTag:-1,data:byte64(false)});
-    setStatus(namActive?'NAM ACTIVE • native DSP':'AMP ACTIVE • native legacy stage');
-    refreshIndicators();
-  }
-
-  function apply(k,v){
-    state[k]=v;
-    const map={gain:0,bass:2,mid:3,treble:4,presence:13,master:26,drive:14,tone:15,level:16,eqLow:17,eqMid:18,eqHigh:19,delay:20,reverb:21};
-    if(map[k]!==undefined) sendParam(map[k],v/100);
-  }
-
-  function makeKnobs(id,names){
-    const root=$(id);if(!root)return;root.innerHTML='';
-    names.forEach(name=>{
-      const key=id==='eq'?'eq'+name.toLowerCase().replace(' ',''):name.toLowerCase().replace(' ','');
-      const d=document.createElement('div');d.className='knob';
-      const f=document.createElement('div');f.className='knobface';
-      const scale=document.createElement('div');scale.className='knobscale';
-      const finger=document.createElement('div');finger.className='fingerpointer';finger.textContent='🖕';
-      f.append(scale,finger);
-      const v=document.createElement('b'),l=document.createElement('small');l.textContent=name;d.append(f,v,l);
-      let value=state[key]??50;
-      const set=x=>{value=Math.max(0,Math.min(100,Math.round(x)));state[key]=value;v.textContent=value+'%';f.style.setProperty('--pct',value);f.style.setProperty('--angle',(-135+value*2.7)+'deg');apply(key,value)};
-      knobSetters[key]=set;set(value);
-      let sy,sv;
-      f.addEventListener('pointerdown',e=>{e.preventDefault();sy=e.clientY;sv=value;f.setPointerCapture?.(e.pointerId)});
-      f.addEventListener('pointermove',e=>{if(sy!==undefined)set(sv+(sy-e.clientY)*.5)});
-      f.addEventListener('pointerup',()=>sy=undefined);f.addEventListener('pointercancel',()=>sy=undefined);
-      f.addEventListener('wheel',e=>{e.preventDefault();set(value+(e.deltaY<0?2:-2))},{passive:false});
-      root.append(d);
-    });
-  }
-
-  function formatIR(n){return String(n).replace(/_ZCB_/,' • ').replace(/_/g,' • ').replace('57OFF','57 OFF').replace(/\.wav$/i,'')}
-
-  function wireSelector(selector,values,onChange){
-    const box=document.querySelector(selector);if(!box)return;
-    const label=box.querySelector('strong'),bs=box.querySelectorAll('button');let i=0;
-    const update=()=>{label&&(label.textContent=selector==='#cabSelect'?formatIR(values[i]):values[i]);onChange?.(values[i],i)};
-    bs[0]?.addEventListener('click',()=>{i=(i-1+values.length)%values.length;update()});
-    bs[1]?.addEventListener('click',()=>{i=(i+1)%values.length;update()});
-    update();
-    return value=>{const n=values.indexOf(value);if(n>=0){i=n;update()}};
-  }
-
-  function selectAmp(name,idx){
-    selectedAmp=name;sendParam(25,idx/Math.max(1,ampModels.length-1));
-    setStatus('AMP • '+name);
-  }
-  function selectOd(name){
-    selectedOd=name;
-    if(name==='Off'){knobSetters.drive?.(0);bypass.od=true;sendParam(22,0);}
-    else {bypass.od=false;sendParam(22,1);if(name==='Tight OD'){knobSetters.drive?.(48);knobSetters.tone?.(62)}else{knobSetters.drive?.(35);knobSetters.tone?.(50)}}
-    sendModule('od',!bypass.od);
-    refreshIndicators();
-  }
-  function selectEq(name){
-    selectedEq=name;
-    const p=name==='V-Curve'?[75,30,75]:name==='Mid Focus'?[42,72,46]:[50,50,50];
-    knobSetters.eqLow?.(p[0]);knobSetters.eqMid?.(p[1]);knobSetters.eqHigh?.(p[2]);
-  }
-  function selectFx(name){
-    selectedFx=name;
-    const p={ 'Hall Reverb':[28,35], 'Plate Reverb':[18,42], 'Room Reverb':[10,22], 'Studio Hall':[32,38]}[name]||[28,35];
-    knobSetters.delay?.(p[0]);knobSetters.reverb?.(p[1]);
-  }
-  function selectFxMode(mode,idx){
-    selectedFxMode=mode;
-    const i=Number.isInteger(idx)?idx:Math.max(0,fxModes.indexOf(mode));
-    document.querySelectorAll('.fx-modes button').forEach(b=>b.classList.toggle('selected',b.textContent.trim()===mode));
-    sendParam(24,i/4);
-    send({msg:'SAMFUI',msgTag:111,ctrlTag:-1,data:u8b64(i)});
-  }
-
-  async function loadBuiltInIR(name){
-    setStatus('CAB • loading '+name+'…');
-    // 104 is the dedicated native built-in IR selector. Do NOT send 103 here:
-    // 103 is the NAM/legacy AMP source selector and must never be used for CAB.
-    send({msg:'SAMFUI',msgTag:104,ctrlTag:-1,data:btoa(name)});
-    selectedCab=name;bypass.cab=false;sendParam(8,1);sendModule('cab',true);
-    if($('cabModel'))$('cabModel').textContent=formatIR(name);
-    if($('irStatus'))$('irStatus').textContent='PACK V1 • '+formatIR(name);
-    refreshIndicators();
-  }
-
-  async function loadCustomIR(file){
-    if(!file)return;
-    try{
-      send({msg:'SAMFUI',msgTag:101,ctrlTag:-1,data:b64(await file.arrayBuffer())});
-      selectedCab=file.name;
-      if($('cabModel'))$('cabModel').textContent=file.name;
-      if($('irStatus'))$('irStatus').textContent='CUSTOM • native DSP loading';
-      bypass.cab=false;sendParam(8,1);sendModule('cab',true);refreshIndicators();
-    }catch(e){setStatus('IR ERROR • '+e.message)}
-  }
-
-  function wireEqGraph(){
-    const svg=document.querySelector('.eq-graph svg'),path=$('eqCurve'),fill=$('eqFill');if(!svg)return;
-    const draw=()=>{const a=(state.eqLow-50)*.24,b=(state.eqMid-50)*.24,c=(state.eqHigh-50)*.24,y=g=>50-Math.max(-12,Math.min(12,g))*2.65,d='M0 '+y(a)+' C55 '+y(a)+' 92 '+y(b)+' 150 '+y(b)+' C208 '+y(b)+' 245 '+y(c)+' 300 '+y(c);path?.setAttribute('d',d);fill?.setAttribute('d',d+' L300 100 L0 100 Z');};
-    const map={eqLowPoint:'eqLow',eqMidPoint:'eqMid',eqHighPoint:'eqHigh'};let active=null;
-    ['eqLowPoint','eqMidPoint','eqHighPoint'].forEach((id,i)=>{const p=document.createElementNS('http://www.w3.org/2000/svg','circle');p.id=id;p.setAttribute('r','5');p.classList.add('eq-point');p.setAttribute('cx',[42,150,258][i]);svg.append(p)});
-    const move=e=>{if(!active)return;const r=svg.getBoundingClientRect(),k=map[active],gain=Math.max(-12,Math.min(12,(50-(e.clientY-r.top))/2.65));knobSetters[k]?.(50+gain/.24);draw()};
-    svg.addEventListener('pointerdown',e=>{if(map[e.target.id]){active=e.target.id;e.target.setPointerCapture?.(e.pointerId);move(e);e.preventDefault()}});
-    svg.addEventListener('pointermove',move);svg.addEventListener('pointerup',()=>active=null);svg.addEventListener('pointercancel',()=>active=null);draw();
-  }
-
-  function updatePreset(){
-    const p=presets[presetIndex];$('presetName').textContent=String(presetIndex+1).padStart(2,'0')+'  '+p.name;
-    setAmp?.(p.amp);setOd?.(p.od);setEq?.(p.eq);setCab?.(p.cab);setFx?.(p.fx);setFxMode?.(p.fxMode);
-  }
-  function cyclePreset(dir){presetIndex=(presetIndex+dir+presets.length)%presets.length;updatePreset()}
-
-  function wireUI(){
-    $('start')?.addEventListener('click',()=>toggleModule('amp'));
-    $('sourceSwitch')?.addEventListener('click',toggleSource);
-    $('stopAudio')?.addEventListener('click',()=>setStatus('Audio is host-controlled in VST3'));
-    $('presetPrev')?.addEventListener('click',()=>cyclePreset(-1));$('presetNext')?.addEventListener('click',()=>cyclePreset(1));
-    document.querySelectorAll('.chain-node[data-target]').forEach(n=>n.addEventListener('click',()=>$(n.dataset.target)?.scrollIntoView({behavior:'smooth',block:'center'})));
-    document.querySelectorAll('.module-bypass[data-module]:not(#start)').forEach(b=>b.addEventListener('click',()=>toggleModule(b.dataset.module)));
-    setAmp=wireSelector('#ampSelect',ampModels,selectAmp);
-    setOd=wireSelector('#odSelect',odModels,selectOd);
-    setEq=wireSelector('#eqSelect',eqModels,selectEq);
-    setCab=wireSelector('#cabSelect',cabModels,loadBuiltInIR);
-    setFx=wireSelector('#fxSelect',fxModels,selectFx);
-    setFxMode=selectFxMode;
-    document.querySelectorAll('.fx-modes button').forEach((b,i)=>b.addEventListener('click',()=>selectFxMode(b.textContent.trim(),i)));
-    $('nam')?.addEventListener('change',async e=>{
-      const file=e.target.files?.[0];if(!file)return;
-      try{
-        send({msg:'SAMFUI',msgTag:100,ctrlTag:-1,data:b64(await file.arrayBuffer())});
-        namLoaded=true;namActive=true;bypass.amp=false;
-        $('fileName').textContent=file.name;setStatus('NAM MODEL • sending to native DSP…');
-        send({msg:'SAMFUI',msgTag:103,ctrlTag:-1,data:byte64(true)});send({msg:'SAMFUI',msgTag:102,ctrlTag:-1,data:byte64(false)});
-        refreshIndicators();
-      }catch(err){setStatus('NAM ERROR • '+err.message)}
-    });
-    $('irInput')?.addEventListener('change',async e=>{for(const f of [...(e.target.files||[])])await loadCustomIR(f);e.target.value=''});
-    $('savePreset')?.addEventListener('click',()=>{const name=prompt('Nama preset:',$('presetName')?.textContent||'My Preset');if(name){localStorage.setItem('solar-last-preset',name);setStatus('Preset saved • '+name)}});
-    $('presetMenu')?.addEventListener('click',()=>setStatus('Preset menu • use PREV/NEXT'));
-  }
-
-  wireUI();
-  makeKnobs('amp',['GAIN','BASS','MID','TREBLE','PRESENCE','MASTER']);
-  makeKnobs('od',['DRIVE','TONE','LEVEL']);
-  makeKnobs('eq',['LOW','MID','HIGH']);
-  makeKnobs('fx',['DELAY','REVERB']);
-  wireEqGraph();
-  refreshIndicators();
-  setStatus('NATIVE DSP • choose a .NAM model');
-  if($('engine'))$('engine').textContent='NATIVE NAM DSP';
-  if($('rate'))$('rate').textContent='HOST';
-  if($('latency'))$('latency').textContent='NATIVE';
-})();
