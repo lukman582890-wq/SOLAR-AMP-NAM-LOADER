@@ -22,7 +22,7 @@ function refreshNamBypass(){
 async function initNam(){
  if(!ctx?.audioWorklet)return false;
  try{
-  await ctx.audioWorklet.addModule('./nam-worklet.js?v=51');
+  await ctx.audioWorklet.addModule('./nam-worklet.js?v=53');
   namNode=new AudioWorkletNode(ctx,'solar-nam-processor',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1]});
   return await new Promise(resolve=>{
    let settled=false;
@@ -137,15 +137,22 @@ function setNamAmpMode(active){
  refreshDrive();refreshAmpTone();refreshNamBypass();refreshStatusIndicators();
 }
 function toggleAmpSource(){
- if(!namModelLoaded||!namReady){
-  toggleModule('amp');
+ if(!running){
+  setText($('modelStatus'),'Start Audio first');
   return;
  }
+ if(!namModelLoaded||!namReady){
+  setText($('modelStatus'),'NAM NOT READY • load a valid .NAM model first');
+  refreshStatusIndicators();
+  return;
+ }
+ if(moduleBypass.amp)moduleBypass.amp=false;
  setNamAmpMode(!namMode);
- const status=namMode
+ refreshAllBypass();
+ refreshNamBypass();
+ setText($('modelStatus'),namMode
   ?'NAM ACTIVE • '+(String($('fileName')?.textContent||'model'))
-  :'AMP ACTIVE • '+(String(selectedAmp||'legacy AMP'));
- setText($('modelStatus'),status);refreshStatusIndicators();
+  :'AMP ACTIVE • '+(String(selectedAmp||'legacy AMP')));
 }
 function refreshAmpTone(){
  if(!ctx)return;
@@ -177,9 +184,9 @@ function refreshCab(){
  if(nodes.cabPresence)nodes.cabPresence.gain.value=0;
 }
 function refreshStatusIndicators(){
- const namActive=Boolean(namSourceActive);
- const ampActive=!namActive&&!moduleBypass.amp;
- const bypassActive=!namActive&&Boolean(moduleBypass.amp);
+ const bypassActive=Boolean(moduleBypass.amp);
+ const namActive=!bypassActive&&Boolean(namMode);
+ const ampActive=!bypassActive&&!namActive;
  const ampEl=$('stateAmp');
  const ampLabel=ampEl?.querySelector('b');
  if(ampEl){
@@ -189,14 +196,23 @@ function refreshStatusIndicators(){
  }
  const bypassEl=$('stateBypass');
  if(bypassEl)bypassEl.classList.toggle('selected',bypassActive);
+ const switchBtn=$('sourceSwitch');
+ if(switchBtn){
+  const loaded=Boolean(namModelLoaded&&namReady);
+  switchBtn.disabled=!loaded;
+  switchBtn.classList.toggle('nam-selected',namActive);
+  switchBtn.textContent=namActive?'SWITCH → AMP':'SWITCH → NAM';
+  switchBtn.setAttribute('aria-label',namActive?'Switch active source to legacy AMP':'Switch active source to NAM');
+  switchBtn.title=loaded?(namActive?'NAM active — switch to legacy AMP':'AMP active — switch to NAM'):'Load a NAM model and start audio first';
+ }
  const chainMap={od:'odModule',amp:'ampModule',cab:'cabModule',eq:'eqModule',fx:'fxModule'};
  Object.entries(chainMap).forEach(([name,id])=>{
   const node=document.querySelector('.chain-node[data-target="'+id+'"]');
   if(!node)return;
-  const active=name==='amp'?(namMode||!moduleBypass.amp):!moduleBypass[name];
+  const active=name==='amp'?(!bypassActive):!moduleBypass[name];
   node.classList.toggle('active',active);
   node.classList.toggle('bypassed',!active);
-  node.classList.toggle('nam-active',name==='amp'&&namMode);
+  node.classList.toggle('nam-active',name==='amp'&&namActive);
  });
 }
 function refreshAllBypass(){refreshDrive();refreshAmpTone();refreshEq();refreshCab();refreshFx();refreshStatusIndicators()}
@@ -460,7 +476,7 @@ function applyFxMode(mode){
  refreshFx();
 }
 function wireUI(){
- $('start').addEventListener('click',()=>{if(!running){start();return}toggleAmpSource()});
+ $('start').addEventListener('click',()=>{if(!running){start();return}toggleModule('amp')});
  $('stopAudio')?.addEventListener('click',stop);
  $('presetPrev')?.addEventListener('click',()=>cyclePreset(-1));$('presetNext')?.addEventListener('click',()=>cyclePreset(1));
 $('savePreset')?.addEventListener('click',savePreset);
@@ -475,6 +491,7 @@ document.querySelector('#irInput')?.addEventListener('change',async e=>{for(cons
  setFx=wireModelSelector('#fxSelect',['Hall Reverb','Plate Reverb','Room Reverb','Studio Hall'],applyFxModel);setFxMode=applyFxMode;
  document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>applyFxMode(b.textContent.trim())));
 document.querySelectorAll('.module-bypass[data-module]:not(#start)').forEach(icon=>icon.addEventListener('click',()=>toggleModule(icon.dataset.module)));
+  $('sourceSwitch')?.addEventListener('click',toggleAmpSource);
  $('nam').addEventListener('change',async e=>{
   const f=e.target.files?.[0];if(!f)return;setText($('fileName'),f.name);
   try{const raw=JSON.parse(await f.text());const a=String(raw.architecture??raw.model?.architecture??raw.config?.architecture??'').toUpperCase();const isA2=a.includes('A2')||String(raw?.config?.version??'').toUpperCase().includes('A2');const isA1=a.includes('A1')||String(raw?.config?.version??'').toUpperCase().includes('A1');const kind=isA2?'NAM A2':isA1?'NAM A1':a.includes('WAVENET')?'NAM WaveNet':a.includes('LSTM')?'NAM LSTM':raw?.weights?'NAM model':'NAM architecture unknown';namModelJson=JSON.stringify(raw);namPending=true;namSourceActive=false;refreshStatusIndicators();setText($('modelStatus'),f.name+' • '+kind+' • '+(namReady?'loading real NAM WASM…':'model queued — Start Audio'));if(namReady)loadNamModel(namModelJson)}
