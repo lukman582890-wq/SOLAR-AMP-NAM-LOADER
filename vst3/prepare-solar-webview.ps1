@@ -29,8 +29,9 @@ $p=$p.Replace('<ProgramDatabaseFile>$(PDB_FILE)</ProgramDatabaseFile>','<Program
 [IO.File]::WriteAllText($props,$p,(New-Object Text.UTF8Encoding($false)))
 
 $x=[IO.File]::ReadAllText($proj)
-$x=$x.Replace('    <ClInclude Include="..\NeuralAmpModeler.h" />','    <ClInclude Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebView.h" />\n    <ClInclude Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebViewEditorDelegate.h" />\n    <ClInclude Include="..\NeuralAmpModeler.h" />')
-$x=$x.Replace('    <ClCompile Include="..\NeuralAmpModeler.cpp" />','    <ClCompile Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebView.cpp" />\n    <ClCompile Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebViewEditorDelegate.cpp" />\n    <ClCompile Include="..\NeuralAmpModeler.cpp" />')
+$nl=[Environment]::NewLine
+$x=$x.Replace('    <ClInclude Include="..\NeuralAmpModeler.h" />','    <ClInclude Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebView.h" />'+$nl+'    <ClInclude Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebViewEditorDelegate.h" />'+$nl+'    <ClInclude Include="..\NeuralAmpModeler.h" />')
+$x=$x.Replace('    <ClCompile Include="..\NeuralAmpModeler.cpp" />','    <ClCompile Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebView.cpp" />'+$nl+'    <ClCompile Include="..\..\iPlug2\IPlug\Extras\WebView\IPlugWebViewEditorDelegate.cpp" />'+$nl+'    <ClCompile Include="..\NeuralAmpModeler.cpp" />')
 [IO.File]::WriteAllText($proj,$x,(New-Object Text.UTF8Encoding($false)))
 
 if(-not (Select-String -Path $src -Pattern 'mEditorInitFunc' -SimpleMatch -Quiet)){throw 'Native WebView source was not installed.'}
