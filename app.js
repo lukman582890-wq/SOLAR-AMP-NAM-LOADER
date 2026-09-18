@@ -35,6 +35,7 @@ function refreshEq(){
  if(nodes.presence)nodes.presence.gain.value=(state.presence-50)*.22*q;
  if(nodes.low)nodes.low.frequency.value=moduleBypass.eq?20:40+state.low*1.2;
  if(nodes.high)nodes.high.frequency.value=moduleBypass.eq?20000:4000+state.high*60;
+ eqGraph.low=(state.eqLow-50)*.24;eqGraph.mid=(state.eqMid-50)*.24;eqGraph.high=(state.eqHigh-50)*.24;updateEqGraph();
 }
 function refreshCab(){
  if(!ctx)return;
