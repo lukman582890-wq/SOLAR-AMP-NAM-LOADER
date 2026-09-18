@@ -17,6 +17,7 @@
   <div class="brand"><div class="sun">A</div><div><strong>SOLAR AMP</strong><small>NAM LOADER</small></div></div>
   <div class="top-actions">
     <button id="install" class="icon-btn" hidden>INSTALL</button>
+    <button id="stopAudio" class="icon-btn" type="button" hidden>STOP</button>
     <button class="icon-btn" type="button">⋮</button>
   </div>
 </header>
@@ -55,7 +56,7 @@
 
 <section id="ampModule" class="module amp-module">
   <div class="module-head">
-    <div class="module-title"><button id="start" class="power">🖕</button><div><h2>AMP</h2><small>NEURAL MODELING</small></div></div>
+    <div class="module-title"><button id="start" class="power module-bypass" data-module="amp" aria-label="Start audio / toggle AMP bypass" aria-pressed="false">🖕</button><div><h2>AMP</h2><small>NEURAL MODELING</small></div></div>
     <div id="ampSelect" class="model-select"><button type="button">‹</button><strong id="ampModel">British 800</strong><button type="button">›</button></div>
     <button class="icon-btn" type="button">⋮</button>
   </div>
