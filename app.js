@@ -1,6 +1,6 @@
 let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,raf,installEvent;const moduleBypass={amp:false,od:false,eq:false,cab:false,fx:false};let eqGraph={low:0,mid:0,high:0};
 const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-const state={gain:25,bass:100,mid:50,treble:50,presence:50,master:100,drive:35,tone:50,level:72,mic:50,low:50,high:70,delay:28,reverb:22};
+const state={gain:25,bass:100,mid:50,treble:50,presence:50,master:100,drive:35,tone:50,level:72,mic:50,low:50,high:70,delay:28,reverb:22,eqLow:50,eqMid:50,eqHigh:50};
 const presets=[
  {name:'Default Preset',amp:'British 800',od:'Tube Screamer',cab:'4x12 V30',fx:'Hall Reverb'},
  {name:'Clean Glass',amp:'American Clean',od:'Off',cab:'2x12 Blue',fx:'Plate Reverb'},
@@ -29,9 +29,9 @@ function refreshDrive(){
 function refreshEq(){
  if(!ctx)return;
  const q=moduleBypass.eq?0:1;
- if(nodes.bass)nodes.bass.gain.value=(state.bass-50)*.24*q;
- if(nodes.mid)nodes.mid.gain.value=(state.mid-50)*.24*q;
- if(nodes.treble)nodes.treble.gain.value=(state.treble-50)*.24*q;
+ if(nodes.bass)nodes.bass.gain.value=moduleBypass.eq?0:(state.eqLow-50)*.24*q;
+ if(nodes.mid)nodes.mid.gain.value=moduleBypass.eq?0:(state.eqMid-50)*.24*q;
+ if(nodes.treble)nodes.treble.gain.value=moduleBypass.eq?0:(state.eqHigh-50)*.24*q;
  if(nodes.presence)nodes.presence.gain.value=(state.presence-50)*.22*q;
  if(nodes.low)nodes.low.frequency.value=moduleBypass.eq?20:40+state.low*1.2;
  if(nodes.high)nodes.high.frequency.value=moduleBypass.eq?20000:4000+state.high*60;
@@ -53,7 +53,7 @@ function toggleModule(name){
 function apply(k,v){
  if(!ctx)return;
  if(k==='gain'||k==='drive')refreshDrive();
- if(k==='bass'||k==='mid'||k==='treble'||k==='presence'||k==='low'||k==='high')refreshEq();
+ if(k==='bass'||k==='mid'||k==='treble'||k==='presence'||k==='low'||k==='high'||k==='eqLow'||k==='eqMid'||k==='eqHigh')refreshEq();
  if(k==='master'&&master)master.gain.value=v/100;
  if(k==='tone'&&nodes.tone)nodes.tone.frequency.value=1800+v*110;
  if(k==='level'&&nodes.driveLevel)nodes.driveLevel.gain.value=v/100;
@@ -64,7 +64,7 @@ function apply(k,v){
 function makeKnobs(id,names){
  const root=$(id);if(!root)return;root.innerHTML='';
  names.forEach(name=>{
-  const key=name.toLowerCase().replace(' ','');
+  const key=id==='eq'?'eq'+name.toLowerCase().replace(' ',''):name.toLowerCase().replace(' ','');
   const d=document.createElement('div');d.className='knob';
   const f=document.createElement('div');f.className='knobface';
   const scale=document.createElement('div');scale.className='knobscale';
@@ -207,10 +207,10 @@ function wireEqGraph(){
   if(!active)return;const r=svg.getBoundingClientRect(),id=active,key=pointMap[id];
   const yy=Math.max(0,Math.min(100,e.clientY-r.top)),gain=Math.max(-12,Math.min(12,(50-yy)/2.65));
   eqGraph[key]=gain;
-  if(key==='low')state.bass=50+gain/.24;
-  if(key==='mid')state.mid=50+gain/.24;
-  if(key==='high')state.treble=50+gain/.24;
-  knobSetters[key==='low'?'bass':key==='mid'?'mid':'treble']?.(key==='low'?state.bass:key==='mid'?state.mid:state.treble);
+  if(key==='low')state.eqLow=50+gain/.24;
+  if(key==='mid')state.eqMid=50+gain/.24;
+  if(key==='high')state.eqHigh=50+gain/.24;
+  knobSetters[key==='low'?'eqLow':key==='mid'?'eqMid':'eqHigh']?.(key==='low'?state.eqLow:key==='mid'?state.eqMid:state.eqHigh);
   updateEqGraph();
  };
  svg.addEventListener('pointerdown',e=>{const p=e.target;if(p.id&&pointMap[p.id]){active=p.id;p.setPointerCapture?.(e.pointerId);move(e);e.preventDefault()}});
@@ -231,7 +231,9 @@ function applyEqModel(name){
  };
  const p=profiles[name]||profiles.Default;
  if(ctx)refreshEq();
- eqGraph={low:p.bass,mid:p.mid,high:p.treble};updateEqGraph();
+ eqGraph={low:p.bass,mid:p.mid,high:p.treble};
+ state.eqLow=50+p.bass/.24;state.eqMid=50+p.mid/.24;state.eqHigh=50+p.treble/.24;
+ knobSetters.eqLow?.(state.eqLow);knobSetters.eqHigh?.(state.eqHigh);updateEqGraph();
 }
 function applyOdModel(name){
  selectedOd=name;const profiles={'Tube Screamer':.34,'Tight OD':.48,'Off':.01};odBaseDrive=profiles[name]??.01;
