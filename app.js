@@ -245,8 +245,10 @@ function applyOdModel(name){
  selectedOd=name;const profiles={'Tube Screamer':.34,'Tight OD':.48,'Off':.01};odBaseDrive=profiles[name]??.01;
  if(ctx)refreshDrive();
 }
-function applyCabModel(name){
- selectedCab=name;const profiles={'4x12 V30':{cut:7200,pres:2.2},'2x12 Blue':{cut:6500,pres:1.2},'4x10 Green':{cut:8000,pres:-1.5}};
+async function applyCabModel(name){
+ selectedCab=name;
+ if(irPackV1.includes(name)&&ctx){try{const r=await fetch('./ir/'+encodeURIComponent(name)+'.wav');if(r.ok){const decoded=await ctx.decodeAudioData(await r.arrayBuffer());irBuffer=decoded;irName=name;irFiles.set(name,{buffer:decoded});renderIRLibrary();setText($('irStatus'),'PACK V1 • '+name);refreshCab();return}else setText($('irStatus'),'PACK V1 FILE NOT INSTALLED');}catch{setText($('irStatus'),'PACK V1 FILE NOT INSTALLED')}}
+ const profiles={'4x12 V30':{cut:7200,pres:2.2},'2x12 Blue':{cut:6500,pres:1.2},'4x10 Green':{cut:8000,pres:-1.5}};
  const p=profiles[name]||profiles['4x12 V30'];
  if(ctx)refreshCab();
 }
