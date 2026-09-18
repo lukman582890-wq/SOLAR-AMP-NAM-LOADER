@@ -1,1 +1,1 @@
-{"name":"Solar Amp NAM Loader","short_name":"Solar Amp","start_url":".","display":"standalone","background_color":"#0d0e0f","theme_color":"#111111","icons":[]}
+{"name":"Solar Amp NAM Loader","short_name":"Solar Amp","start_url":".","display":"standalone","background_color":"#0d0e0f","theme_color":"#111111","icons":[{"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
