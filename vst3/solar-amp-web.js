@@ -125,20 +125,7 @@ function refreshStatusIndicators(){
 }
 function refreshAllBypass(){refreshDrive();refreshAmpTone();refreshEq();refreshCab();refreshFx();refreshStatusIndicators()}
 function toggleModule(name){if(!(name in moduleBypass))return;moduleBypass[name]=!moduleBypass[name];const icon=document.querySelector('.module-bypass[data-module="'+name+'"]');if(icon){icon.textContent=moduleBypass[name]?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass[name]);icon.setAttribute('aria-pressed',String(!moduleBypass[name]))}const tags={od:0,amp:1,eq:2,cab:3,fx:4};if(tags[name]!==undefined)SAMFUI(110,tags[name],byte64(!moduleBypass[name]));if(name==='amp')SAMFUI(102,-1,byte64(moduleBypass.amp));if(name==='eq')SPVFUI(7,moduleBypass.eq?0:1);if(name==='cab')SPVFUI(8,moduleBypass.cab?0:1);if(name==='od')SPVFUI(22,moduleBypass.od?0:1);if(name==='fx')SPVFUI(23,moduleBypass.fx?0:1);refreshAllBypass();refreshNamBypass();refreshStatusIndicators()}
-function apply(k,v){
- if(window.__SOLAR_VST3__){
-  const map={gain:0,bass:2,mid:3,treble:4,presence:13,master:5,drive:14,tone:15,level:16,eqLow:17,eqMid:18,eqHigh:19,delay:20,reverb:21};
-  if(map[k]!==undefined)SPVFUI(map[k],Number(v)/100); return;
- }
- if(!ctx)return;
- if(k==='gain'||k==='drive'||k==='tone'||k==='level')refreshDrive();
- if(k==='bass'||k==='mid'||k==='treble'||k==='presence')refreshAmpTone();
- if(k==='eqLow'||k==='eqMid'||k==='eqHigh')refreshEq();
- if(k==='master'&&master)master.gain.value=v/100;
- if(k==='low'&&nodes.low)nodes.low.frequency.value=(moduleBypass.amp||namMode)?1:40+v*1.2;
- if(k==='high'&&nodes.high)nodes.high.frequency.value=(moduleBypass.amp||namMode)?20000:4000+v*60;
- if(k==='delay'||k==='reverb')refreshFx();
-}
+function apply(k,v){const m={gain:[0,v/100],bass:[2,v/100],mid:[3,v/100],treble:[4,v/100],presence:[13,v/100],master:[26,v/100],drive:[14,v/100],tone:[15,v/100],level:[16,v/100],eqLow:[17,v/100],eqMid:[18,v/100],eqHigh:[19,v/100],delay:[20,v/100],reverb:[21,v/100]};if(m[k])SPVFUI(m[k][0],m[k][1])}
 function makeKnobs(id,names){
  const root=$(id);if(!root)return;root.innerHTML='';
  names.forEach(name=>{
@@ -243,20 +230,7 @@ function wireEqGraph(){
  updateEqGraph();
 }
 function applyAmpModel(name){selectedAmp=name;const p={'British 800':0,'American Clean':1,'Modern 5150':2}[name]??0;SPVFUI(25,p/2)}
-function applyEqModel(name){
- selectedEq=name;const profiles={
-  'Default':{bass:0,mid:0,treble:0,d:'M0 54 C55 51 95 45 150 52 C205 59 245 53 300 48'},
-  'V-Curve':{bass:4,mid:-5,treble:4,d:'M0 42 C55 36 100 45 150 70 C200 45 245 35 300 40'},
-  'Mid Focus':{bass:-2,mid:5,treble:-1,d:'M0 62 C55 60 95 48 150 30 C205 48 245 59 300 58'}
- };
- const p=profiles[name]||profiles.Default;
- eqGraph={low:p.bass,mid:p.mid,high:p.treble};
- state.eqLow=Math.max(0,Math.min(100,50+p.bass/.24));
- state.eqMid=Math.max(0,Math.min(100,50+p.mid/.24));
- state.eqHigh=Math.max(0,Math.min(100,50+p.treble/.24));
- knobSetters.eqLow?.(state.eqLow);knobSetters.eqMid?.(state.eqMid);knobSetters.eqHigh?.(state.eqHigh);
- if(ctx)refreshEq();else updateEqGraph();
-}
+function applyEqModel(name){selectedEq=name;const profiles={'Default':[50,50,50],'V-Curve':[66.7,29.2,66.7],'Mid Focus':[41.7,70.8,45.8]};const p=profiles[name]||profiles.Default;state.eqLow=p[0];state.eqMid=p[1];state.eqHigh=p[2];knobSetters.eqLow?.(state.eqLow);knobSetters.eqMid?.(state.eqMid);knobSetters.eqHigh?.(state.eqHigh);refreshEq()}
 function applyOdModel(name){selectedOd=name;const p={'Tube Screamer':[35,50,72,true],'Tight OD':[48,58,70,true],'Off':[0,50,100,false]}[name]||[35,50,72,true];state.drive=p[0];state.tone=p[1];state.level=p[2];SPVFUI(14,p[0]/100);SPVFUI(15,p[1]/100);SPVFUI(16,p[2]/100);SPVFUI(22,p[3]?1:0);moduleBypass.od=!p[3];const icon=document.querySelector('.module-bypass[data-module="od"]');if(icon){icon.textContent=moduleBypass.od?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass.od)}}
 async async function applyCabModel(name){selectedCab=name;if(!name)return;setText($('cabModel'),formatIRName(name));setText($('irStatus'),'CAB • loading native IR…');try{SAMFUI(104,-1,btoa(unescape(encodeURIComponent(String(name)))));setText($('irStatus'),'CAB • native IR '+formatIRName(name))}catch(e){setText($('irStatus'),'CAB IR ERROR • '+(e?.message||e))}}
 function renderIRLibrary(){
