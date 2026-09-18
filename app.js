@@ -6,7 +6,7 @@ const presets=[
  {name:'Clean Glass',amp:'American Clean',od:'Off',cab:'2x12 Blue',fx:'Plate Reverb'},
  {name:'Modern High Gain',amp:'Modern 5150',od:'Tight OD',cab:'4x12 V30',fx:'Studio Hall'}
 ];
-let presetIndex=0;let savedPresets=[];try{savedPresets=JSON.parse(localStorage.getItem('solarSavedPresets')||'[]');if(!Array.isArray(savedPresets))savedPresets=[]}catch{savedPresets=[]}let selectedAmp='British 800',selectedOd='Tube Screamer',selectedEq='Default',selectedCab='4x12 V30',selectedFx='Hall Reverb',selectedFxMode='DELAY';let setAmp,setOd,setEq,setCab,setFx;let knobSetters={};let ampBaseDrive=.52,odBaseDrive=.34,fxBaseDelay=.42,fxBaseReverb=.30;
+let presetIndex=0;let savedPresets=[];try{savedPresets=JSON.parse(localStorage.getItem('solarSavedPresets')||'[]');if(!Array.isArray(savedPresets))savedPresets=[]}catch{savedPresets=[]}let selectedAmp='British 800',selectedOd='Tube Screamer',selectedEq='Default',selectedCab='4x12 V30',selectedFx='Hall Reverb',selectedFxMode='DELAY';let setAmp,setOd,setEq,setCab,setFx;let knobSetters={};let ampBaseDrive=.52,odBaseDrive=.34,fxBaseDelay=.42,fxBaseReverb=.30;let irBuffer=null,irName='';const irPackV1=['6100_ZCB_57_API','6100_ZCB_57_NV','6100_ZCB_57OFF_API','6100_ZCB_57OFF_NV','6100_ZCB_201_API','6100_ZCB_201_NV','6100_ZCB_421_API','6100_ZCB_421_NV','6100_ZCB_906_API','6100_ZCB_906_NV','6505_ZCB_57_API','6505_ZCB_57_NV','6505_ZCB_57OFF_API','6505_ZCB_57OFF_NV','6505_ZCB_201_API','6505_ZCB_201_NV','6505_ZCB_421_API','6505_ZCB_421_NV','6505_ZCB_906_API','6505_ZCB_906_NV'];
 const $=id=>document.getElementById(id);
 function curve(k){const c=new Float32Array(44100);for(let i=0;i<c.length;i++){const x=i*2/c.length-1;c[i]=Math.tanh(k*x*4)/Math.tanh(k*4)}return c}
 function setText(el,t){if(el)el.textContent=t}
@@ -39,6 +39,8 @@ function refreshEq(){
 }
 function refreshCab(){
  if(!ctx)return;
+ if(nodes.ir){nodes.ir.buffer=moduleBypass.cab?null:irBuffer;}
+
  const cut=moduleBypass.cab?20000:({ '4x12 V30':7200,'2x12 Blue':6500,'4x10 Green':8000}[selectedCab]||7200);
  if(nodes.cab)nodes.cab.frequency.value=cut;
  if(nodes.cabPresence)nodes.cabPresence.gain.value=moduleBypass.cab?0:({ '4x12 V30':2.2,'2x12 Blue':1.2,'4x10 Green':-1.5}[selectedCab]||2.2);
@@ -109,6 +111,7 @@ async function start(){
   nodes.high=ctx.createBiquadFilter();nodes.high.type='lowpass';nodes.high.frequency.value=7600;
   nodes.cab=ctx.createBiquadFilter();nodes.cab.type='lowpass';nodes.cab.frequency.value=7200;
   nodes.cabPresence=ctx.createBiquadFilter();nodes.cabPresence.type='peaking';nodes.cabPresence.frequency.value=2800;nodes.cabPresence.Q.value=.8;
+  nodes.ir=ctx.createConvolver();nodes.ir.normalize=true;
   const delay=ctx.createDelay(1.2);delay.delayTime.value=.42;nodes.dw=ctx.createGain();
   const rev=ctx.createConvolver();rev.buffer=impulse(1.6,2.1);nodes.rw=ctx.createGain();
   nodes.chorusDelay=ctx.createDelay(.08);nodes.chorusDelay.delayTime.value=.025;nodes.chorusGain=ctx.createGain();
@@ -119,9 +122,9 @@ async function start(){
   nodes.phaserLfo=ctx.createOscillator();nodes.phaserLfoGain=ctx.createGain();nodes.phaserLfo.frequency.value=.32;nodes.phaserLfoGain.gain.value=650;nodes.phaserLfo.connect(nodes.phaserLfoGain).connect(nodes.phaser1.frequency);nodes.phaserLfo.connect(nodes.phaserLfoGain).connect(nodes.phaser2.frequency);nodes.phaserLfo.start();
   const dry=ctx.createGain();dry.gain.value=1;master=ctx.createGain();
   s.connect(inputAnalyser);s.connect(gate).connect(nodes.odDrive).connect(nodes.ampDrive).connect(nodes.tone).connect(nodes.driveLevel).connect(nodes.bass).connect(nodes.mid).connect(nodes.treble).connect(nodes.presence).connect(nodes.low).connect(nodes.high).connect(nodes.cab).connect(nodes.cabPresence);
-  nodes.cabPresence.connect(dry).connect(master);
-  nodes.cabPresence.connect(delay).connect(nodes.dw).connect(master);
-  nodes.cabPresence.connect(rev).connect(nodes.rw).connect(master);
+  nodes.cabPresence.connect(nodes.ir).connect(dry).connect(master);
+  nodes.cabPresence.connect(nodes.ir).connect(delay).connect(nodes.dw).connect(master);
+  nodes.cabPresence.connect(nodes.ir).connect(rev).connect(nodes.rw).connect(master);
   nodes.cabPresence.connect(nodes.chorusDelay).connect(nodes.chorusGain).connect(master);
   nodes.cabPresence.connect(nodes.tremolo).connect(master);
   nodes.cabPresence.connect(nodes.phaser1).connect(nodes.phaser2).connect(nodes.phaserGain).connect(master);
@@ -246,6 +249,13 @@ function applyCabModel(name){
  const p=profiles[name]||profiles['4x12 V30'];
  if(ctx)refreshCab();
 }
+async function loadIRFile(file){
+ if(!file||!ctx)return;
+ try{const buf=await file.arrayBuffer();const decoded=await ctx.decodeAudioData(buf.slice(0));irBuffer=decoded;irName=file.name;setText($('cabModel'),file.name.replace(/\.(wav|aiff?|flac)$/i,''));setText($('irStatus'),'CUSTOM • '+file.name);refreshCab();saveIRLocal(file.name,decoded);}
+ catch(e){setText($('irStatus'),'IR LOAD ERROR');console.error(e)}
+}
+function saveIRLocal(name,buffer){try{const data=buffer.getChannelData(0);const arr=new Float32Array(data);localStorage.setItem('solarLastIRName',name);localStorage.setItem('solarLastIR',btoa(String.fromCharCode(...new Uint8Array(arr.buffer))));}catch{}}
+
 function applyFxModel(name){
  selectedFx=name;const profiles={'Hall Reverb':{delay:.42,rev:.30},'Plate Reverb':{delay:.18,rev:.38},'Room Reverb':{delay:.10,rev:.20},'Studio Hall':{delay:.32,rev:.34}};
  const p=profiles[name]||profiles['Hall Reverb'];fxBaseDelay=p.delay;fxBaseReverb=p.rev;refreshFx();
@@ -265,7 +275,8 @@ $('presetMenu')?.addEventListener('click',manageSavedPresets);
  setOd=wireModelSelector('#odSelect',['Tube Screamer','Tight OD','Off'],applyOdModel);
  setEq=wireModelSelector('#eqSelect',['Default','V-Curve','Mid Focus'],applyEqModel);
  wireEqGraph();
- setCab=wireModelSelector('#cabSelect',['4x12 V30','2x12 Blue','4x10 Green'],applyCabModel);
+ setCab=wireModelSelector('#cabSelect',irPackV1,applyCabModel);
+document.querySelector('#irInput')?.addEventListener('change',e=>[...(e.target.files||[])].forEach(loadIRFile));
  setFx=wireModelSelector('#fxSelect',['Hall Reverb','Plate Reverb','Room Reverb','Studio Hall'],applyFxModel);
  document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>applyFxMode(b.textContent.trim())));
 document.querySelectorAll('.module-bypass[data-module]').forEach(icon=>icon.addEventListener('click',()=>toggleModule(icon.dataset.module)));
