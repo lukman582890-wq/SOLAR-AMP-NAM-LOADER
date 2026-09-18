@@ -79,7 +79,7 @@
 
   function apply(k,v){
     state[k]=v;
-    const map={gain:0,bass:2,mid:3,treble:4,presence:13,master:5,drive:14,tone:15,level:16,eqLow:17,eqMid:18,eqHigh:19,delay:20,reverb:21};
+    const map={gain:0,bass:2,mid:3,treble:4,presence:13,master:26,drive:14,tone:15,level:16,eqLow:17,eqMid:18,eqHigh:19,delay:20,reverb:21};
     if(map[k]!==undefined) sendParam(map[k],v/100);
   }
 
