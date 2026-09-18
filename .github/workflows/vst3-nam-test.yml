@@ -1,0 +1,86 @@
+name: Build NAM VST3 Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Build NAM VST3 (Windows x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout SOLAR AMP project
+        uses: actions/checkout@v4
+
+      - name: Checkout official NAM plugin
+        shell: bash
+        run: |
+          git clone --recursive https://github.com/sdatkinson/NeuralAmpModelerPlugin.git nam-vst3-source
+          cd nam-vst3-source
+          git checkout 16be869746b8915885c7a35bafdcc0061faeb50e
+          git submodule update --init --recursive
+
+      - name: Get VST3 SDK
+        shell: bash
+        working-directory: nam-vst3-source
+        run: |
+          cd iPlug2/Dependencies/IPlug
+          ./download-iplug-sdks.sh
+
+      - name: Get prebuilt audio libraries
+        shell: bash
+        working-directory: nam-vst3-source
+        run: |
+          cd iPlug2/Dependencies
+          ./download-prebuilt-libs.sh
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build official NAM VST3
+        shell: pwsh
+        working-directory: nam-vst3-source
+        run: |
+          Set-Location NeuralAmpModeler/scripts
+          .\makedist-win.bat full zip
+
+      - name: Locate VST3
+        shell: pwsh
+        run: |
+          $vst3 = Get-ChildItem -Path nam-vst3-source -Recurse -Filter "*.vst3" -Directory |
+            Where-Object { $_.FullName -notmatch "\\iPlug2\\" } |
+            Select-Object -First 1
+
+          if (-not $vst3) {
+            Write-Host "No VST3 bundle found."
+            Get-ChildItem nam-vst3-source -Recurse -Filter "*.vst3" -ErrorAction SilentlyContinue
+            exit 1
+          }
+
+          Write-Host "VST3 found: $($vst3.FullName)"
+          New-Item -ItemType Directory -Force -Path vst3-dist | Out-Null
+          Copy-Item -Recurse $vst3.FullName "vst3-dist\NeuralAmpModeler.vst3"
+
+      - name: Validate VST3
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/Tracktion/pluginval/releases/download/latest_release/pluginval_Windows.zip" -OutFile pluginval.zip
+          Expand-Archive pluginval.zip -DestinationPath pluginval -Force
+          $vst3 = Resolve-Path "vst3-dist\NeuralAmpModeler.vst3"
+          & ".\pluginval\pluginval.exe" --skip-gui-tests --validate-in-process --validate "$vst3"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package VST3
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "vst3-dist\NeuralAmpModeler.vst3" -DestinationPath "NeuralAmpModeler-VST3-Windows-x64.zip" -Force
+
+      - name: Upload VST3 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeuralAmpModeler-VST3-Windows-x64
+          path: |
+            NeuralAmpModeler-VST3-Windows-x64.zip
+            vst3-dist/NeuralAmpModeler.vst3
