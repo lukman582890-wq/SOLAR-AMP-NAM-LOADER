@@ -6,10 +6,10 @@
 <meta name="theme-color" content="#080b0e">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=14">
+<link rel="stylesheet" href="styles.css?v=15">
 <title>Solar Amp — NAM Loader</title>
 <script>
-(()=>{const V='solar-ui-v14';if(localStorage.getItem(V)!=='1'){localStorage.setItem(V,'1');navigator.serviceWorker?.getRegistrations?.().then(rs=>Promise.all(rs.map(r=>r.unregister()))).then(()=>caches?.keys?.()).then(ks=>Promise.all((ks||[]).map(k=>caches.delete(k)))).then(()=>location.reload()).catch(()=>location.reload())}})();
+(()=>{const V='solar-ui-v15';if(localStorage.getItem(V)!=='1'){localStorage.setItem(V,'1');navigator.serviceWorker?.getRegistrations?.().then(rs=>Promise.all(rs.map(r=>r.unregister()))).then(()=>caches?.keys?.()).then(ks=>Promise.all((ks||[]).map(k=>caches.delete(k)))).then(()=>location.reload()).catch(()=>location.reload())}})();
 </script></head>
 <body>
 <main>
@@ -67,22 +67,22 @@
 
 <section class="rig">
   <section id="odModule" class="module od-module">
-    <div class="module-head compact"><div class="module-title"><div class="module-icon">↯</div><div><h2>OD</h2><small>DRIVE</small></div></div><div id="odSelect" class="model-select"><button type="button">‹</button><strong id="odModel">Tube Screamer</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
+    <div class="module-head compact"><div class="module-title"><button type="button" class="module-icon module-bypass" data-module="od" aria-label="Toggle OD bypass" aria-pressed="true">👍</button><div><h2>OD</h2><small>DRIVE</small></div></div><div id="odSelect" class="model-select"><button type="button">‹</button><strong id="odModel">Tube Screamer</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
     <div class="knobs" id="od"></div>
   </section>
 
   <section id="eqModule" class="module eq-module">
-    <div class="module-head compact"><div class="module-title"><div class="module-icon eq-icon">EQ</div><div><h2>EQ</h2><small>GRAPHIC / PARAMETRIC</small></div></div><div id="eqSelect" class="model-select"><button type="button">‹</button><strong>Default</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
+    <div class="module-head compact"><div class="module-title"><button type="button" class="module-icon eq-icon module-bypass" data-module="eq" aria-label="Toggle EQ bypass" aria-pressed="true">👍</button><div><h2>EQ</h2><small>GRAPHIC / PARAMETRIC</small></div></div><div id="eqSelect" class="model-select"><button type="button">‹</button><strong>Default</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
     <div class="eq-body"><div class="knobs" id="eq"></div><div class="eq-graph"><span>+12</span><svg class="eq-curve" viewBox="0 0 300 100" preserveAspectRatio="none" aria-hidden="true"><path id="eqCurve" d="M0 54 C60 52 90 45 150 54 C210 63 240 54 300 48"/></svg><span>0</span><span>-12</span><footer>50&nbsp;&nbsp;&nbsp;&nbsp;200&nbsp;&nbsp;&nbsp;&nbsp;1k&nbsp;&nbsp;&nbsp;&nbsp;5k&nbsp;&nbsp;&nbsp;&nbsp;20k</footer></div></div>
   </section>
 
   <section id="cabModule" class="module cab-module">
-    <div class="module-head compact"><div class="module-title"><div class="module-icon cab-icon">▦</div><div><h2>CAB</h2><small>CABINET / IR</small></div></div><div id="cabSelect" class="model-select"><button type="button">‹</button><strong id="cabModel">4x12 V30</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
+    <div class="module-head compact"><div class="module-title"><button type="button" class="module-icon cab-icon module-bypass" data-module="cab" aria-label="Toggle CAB bypass" aria-pressed="true">👍</button><div><h2>CAB</h2><small>CABINET / IR</small></div></div><div id="cabSelect" class="model-select"><button type="button">‹</button><strong id="cabModel">4x12 V30</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
     <div class="cab-body"><div class="cabinet"><div class="cab-grille">4×12<br><small>V30</small></div></div><div class="cab-copy"><b>MIC PLACEMENT</b><span>SM57 • ON AXIS</span><div class="cab-rule"></div><small>Cab/IR visual panel — audio routing remains in the existing engine.</small></div></div>
   </section>
 
   <section id="fxModule" class="module">
-    <div class="module-head compact"><div class="module-title"><div class="module-icon fx-icon">FX</div><div><h2>FX</h2><small>DELAY / REVERB</small></div></div><div id="fxSelect" class="model-select"><button type="button">‹</button><strong id="fxModel">Hall Reverb</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
+    <div class="module-head compact"><div class="module-title"><button type="button" class="module-icon fx-icon module-bypass" data-module="fx" aria-label="Toggle FX bypass" aria-pressed="true">👍</button><div><h2>FX</h2><small>DELAY / REVERB</small></div></div><div id="fxSelect" class="model-select"><button type="button">‹</button><strong id="fxModel">Hall Reverb</strong><button type="button">›</button></div><button class="icon-btn" type="button">⋮</button></div>
     <div class="fx-body"><div class="knobs" id="fx"></div><div class="fx-modes"><button class="selected" type="button">DELAY</button><button type="button">REVERB</button><button type="button">CHORUS</button><button type="button">PHASER</button><button type="button">TREMOLO</button></div></div>
   </section>
 </section>
@@ -101,6 +101,6 @@
 
 <footer class="footer"><span>PLAY&nbsp;&nbsp;•&nbsp;&nbsp;EXPLORE&nbsp;&nbsp;•&nbsp;&nbsp;CREATE</span><span>SOLAR AMP&nbsp;&nbsp;v0.1.0</span></footer>
 </main>
-<script src="app.js?v=14"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>
