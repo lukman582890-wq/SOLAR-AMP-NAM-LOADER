@@ -1,4 +1,4 @@
-let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,raf,installEvent;const moduleBypass={amp:false,od:false,eq:false,cab:false,fx:false};
+let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,raf,installEvent;const moduleBypass={amp:false,od:false,eq:false,cab:false,fx:false};let eqGraph={low:0,mid:0,high:0};
 const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const state={gain:25,bass:100,mid:50,treble:50,presence:50,master:100,drive:35,tone:50,level:72,mic:50,low:50,high:70,delay:28,reverb:22};
 const presets=[
@@ -191,6 +191,32 @@ function wireModelSelector(selector,values,onChange){
  buttons[0]?.addEventListener('click',()=>{i=(i-1+values.length)%values.length;update()});
  buttons[1]?.addEventListener('click',()=>{i=(i+1)%values.length;update()});update();return set;
 }
+function updateEqGraph(){
+ const path=$('eqCurve'),svg=document.querySelector('.eq-graph svg');if(!path||!svg)return;
+ const y=g=>50-(Math.max(-12,Math.min(12,g))*2.65);
+ const d='M0 '+y(eqGraph.low)+' C55 '+y(eqGraph.low)+' 92 '+y(eqGraph.mid)+' 150 '+y(eqGraph.mid)+' C208 '+y(eqGraph.mid)+' 245 '+y(eqGraph.high)+' 300 '+y(eqGraph.high);
+ path.setAttribute('d',d);
+ const pts=[['eqLowPoint',42,eqGraph.low],['eqMidPoint',150,eqGraph.mid],['eqHighPoint',258,eqGraph.high]];
+ pts.forEach(([id,x,g])=>{let q=$(id);if(!q){q=document.createElementNS('http://www.w3.org/2000/svg','circle');q.id=id;q.setAttribute('r','5');q.classList.add('eq-point');svg.append(q)}q.setAttribute('cx',x);q.setAttribute('cy',y(g));});
+}
+function wireEqGraph(){
+ const svg=document.querySelector('.eq-graph svg');if(!svg)return;
+ let active=null;
+ const pointMap={eqLowPoint:'low',eqMidPoint:'mid',eqHighPoint:'high'};
+ const move=e=>{
+  if(!active)return;const r=svg.getBoundingClientRect(),id=active,key=pointMap[id];
+  const yy=Math.max(0,Math.min(100,e.clientY-r.top)),gain=Math.max(-12,Math.min(12,(50-yy)/2.65));
+  eqGraph[key]=gain;
+  if(key==='low')state.bass=50+gain/.24;
+  if(key==='mid')state.mid=50+gain/.24;
+  if(key==='high')state.treble=50+gain/.24;
+  knobSetters[key==='low'?'bass':key==='mid'?'mid':'treble']?.(key==='low'?state.bass:key==='mid'?state.mid:state.treble);
+  updateEqGraph();
+ };
+ svg.addEventListener('pointerdown',e=>{const p=e.target;if(p.id&&pointMap[p.id]){active=p.id;p.setPointerCapture?.(e.pointerId);move(e);e.preventDefault()}});
+ svg.addEventListener('pointermove',move);svg.addEventListener('pointerup',()=>active=null);svg.addEventListener('pointercancel',()=>active=null);
+ updateEqGraph();
+}
 function applyAmpModel(name){
  selectedAmp=name;
  const profiles={'British 800':{drive:.52,tone:6100},'American Clean':{drive:.16,tone:8200},'Modern 5150':{drive:.68,tone:5600}};
@@ -205,7 +231,7 @@ function applyEqModel(name){
  };
  const p=profiles[name]||profiles.Default;
  if(ctx)refreshEq();
- const path=$('eqCurve');if(path)path.setAttribute('d',p.d);
+ eqGraph={low:p.bass,mid:p.mid,high:p.treble};updateEqGraph();
 }
 function applyOdModel(name){
  selectedOd=name;const profiles={'Tube Screamer':.34,'Tight OD':.48,'Off':.01};odBaseDrive=profiles[name]??.01;
@@ -234,6 +260,7 @@ $('presetMenu')?.addEventListener('click',manageSavedPresets);
  setAmp=wireModelSelector('#ampSelect',['British 800','American Clean','Modern 5150'],applyAmpModel);
  setOd=wireModelSelector('#odSelect',['Tube Screamer','Tight OD','Off'],applyOdModel);
  setEq=wireModelSelector('#eqSelect',['Default','V-Curve','Mid Focus'],applyEqModel);
+ wireEqGraph();
  setCab=wireModelSelector('#cabSelect',['4x12 V30','2x12 Blue','4x10 Green'],applyCabModel);
  setFx=wireModelSelector('#fxSelect',['Hall Reverb','Plate Reverb','Room Reverb','Studio Hall'],applyFxModel);
  document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>applyFxMode(b.textContent.trim())));
