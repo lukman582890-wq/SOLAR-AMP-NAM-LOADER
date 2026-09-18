@@ -254,7 +254,7 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
         std::ofstream f(path, std::ios::binary | std::ios::trunc);
         if (!f) throw std::runtime_error("Cannot create temporary NAM file.");
         f.write(reinterpret_cast<const char*>(pData), dataSize); f.close();
-        WDL_String modelPath; modelPath.Set(path.u8string().c_str());
+        WDL_String modelPath; modelPath.Set(path.string().c_str());
         const std::string err = _StageModel(modelPath);
         nlohmann::json msg; msg["id"]="solar-status"; msg["type"]=err.empty()?"model-loaded":"error";
         msg["message"]=err.empty()?"NAM MODEL • loaded into native DSP":std::string("NAM MODEL ERROR • ")+err;
@@ -278,7 +278,7 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
         std::ofstream f(path, std::ios::binary | std::ios::trunc);
         if (!f) throw std::runtime_error("Cannot create temporary IR file.");
         f.write(reinterpret_cast<const char*>(pData), dataSize); f.close();
-        WDL_String irPath; irPath.Set(path.u8string().c_str());
+        WDL_String irPath; irPath.Set(path.string().c_str());
         const auto rc = _StageIR(irPath);
         nlohmann::json msg; msg["id"]="solar-status"; msg["type"]=rc==dsp::wav::LoadReturnCode::SUCCESS?"ir-loaded":"error";
         msg["message"]=rc==dsp::wav::LoadReturnCode::SUCCESS?"IR • loaded into native DSP":"IR LOAD ERROR";
