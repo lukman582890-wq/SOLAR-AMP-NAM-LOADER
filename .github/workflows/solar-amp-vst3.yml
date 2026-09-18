@@ -103,7 +103,7 @@ jobs:
       - name: Build VST3
         shell: pwsh
         run: |
-          msbuild 'nam-vst3-source\NeuralAmpModeler\projects\NeuralAmpModeler-vst3.vcxproj' /m /p:Configuration=Release /p:Platform=x64 /p:BuildProjectReferences=true /p:TargetName=SOLARAMP /p:PostBuildEventUseInBuild=false /p:PreBuildEventUseInBuild=false
+          msbuild 'nam-vst3-source\NeuralAmpModeler\projects\NeuralAmpModeler-vst3.vcxproj' /m /p:Configuration=Release /p:Platform=x64 /p:BuildProjectReferences=true /p:TargetName=SOLARAMP /p:SolutionDir="$PWD\nam-vst3-source\NeuralAmpModeler\" /p:PostBuildEventUseInBuild=false /p:PreBuildEventUseInBuild=false
 
       - name: Locate VST3 and install Web UI resources
         shell: pwsh
