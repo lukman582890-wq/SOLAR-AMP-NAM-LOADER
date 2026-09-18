@@ -458,10 +458,25 @@ function applyEqModel(name){
 }
 function applyOdModel(name){
  selectedOd=name;const profiles={'Tube Screamer':.34,'Tight OD':.48,'Off':.01};odBaseDrive=profiles[name]??.01;
+ if(window.__SOLAR_VST3__){
+  SPVFUI(14,Math.min(1,Math.max(0,odBaseDrive*1.7)));
+  SPVFUI(22,name==='Off'?0:1);
+  return;
+ }
  if(ctx)refreshDrive();
 }
 async function applyCabModel(name){
  selectedCab=name;
+ if(window.__SOLAR_VST3__ && irPackV1.includes(name)){
+  try{
+   const r=await fetch('./ir/'+encodeURIComponent(name)+'.wav',{cache:'force-cache'});
+   if(!r.ok)throw new Error('HTTP '+r.status);
+   const bytes=new Uint8Array(await r.arrayBuffer());
+   SAMFUI(101,-1,btoa(String.fromCharCode(...bytes)));
+   setText($('cabModel'),formatIRName(name));setText($('irStatus'),'PACK V1 • sending to native DSP');
+  }catch(err){setText($('irStatus'),'PACK V1 LOAD ERROR')}
+  return;
+ }
  if(irPackV1.includes(name)){
   if(!ctx){setText($('irStatus'),'PACK V1 • READY');return}
   irBuffer=null;irName='';
@@ -487,6 +502,14 @@ function renderIRLibrary(){
 }
 async function loadIRFile(file){
  if(!file)return;
+ if(window.__SOLAR_VST3__){
+  try{
+   const bytes=new Uint8Array(await file.arrayBuffer());
+   SAMFUI(101,-1,btoa(String.fromCharCode(...bytes)));
+   selectedCab=file.name;setText($('cabModel'),formatIRName(file.name));setText($('irStatus'),'CUSTOM • sending to native DSP');
+  }catch(e){setText($('irStatus'),'IR LOAD ERROR')}
+  return;
+ }
  if(!ctx){pendingIRFiles.push(file);setText($('irStatus'),'CUSTOM • QUEUED — START AUDIO');return}
  try{
   const buf=await file.arrayBuffer();const decoded=await ctx.decodeAudioData(buf.slice(0));
@@ -498,11 +521,14 @@ function saveIRLocal(name,buffer){try{const data=buffer.getChannelData(0);const 
 
 function applyFxModel(name){
  selectedFx=name;const profiles={'Hall Reverb':{delay:.42,rev:.30},'Plate Reverb':{delay:.18,rev:.38},'Room Reverb':{delay:.10,rev:.20},'Studio Hall':{delay:.32,rev:.34}};
- const p=profiles[name]||profiles['Hall Reverb'];fxBaseDelay=p.delay;fxBaseReverb=p.rev;refreshFx();
+ const p=profiles[name]||profiles['Hall Reverb'];fxBaseDelay=p.delay;fxBaseReverb=p.rev;
+ if(window.__SOLAR_VST3__){SPVFUI(20,state.delay/100);SPVFUI(21,state.reverb/100);return}
+ refreshFx();
 }
 function applyFxMode(mode){
  selectedFxMode=mode;
  const b=document.querySelectorAll('.fx-modes button');b.forEach(x=>x.classList.toggle('selected',x.textContent.trim()===mode));
+ if(window.__SOLAR_VST3__){const m={DELAY:0,REVERB:1,CHORUS:2,PHASER:3,TREMOLO:4};SPVFUI(24,m[mode]??0);return}
  refreshFx();
 }
 function wireUI(){
