@@ -113,9 +113,24 @@ function savePreset(){
  savedPresets=savedPresets.filter(x=>x.name!==name);savedPresets.push(p);localStorage.setItem('solarSavedPresets',JSON.stringify(savedPresets));alert('Preset tersimpan: '+name);
 }
 function loadSavedPreset(p){
+ if(!p)return;
  Object.assign(state,p.state||{});
  setAmp?.(p.amp||'British 800');setOd?.(p.od||'Tube Screamer');setEq?.(p.eq||'Default');setText($('cabModel'),p.cab||'4x12 V30');setText($('fxModel'),p.fx||'Hall Reverb');
+ setText($('presetName'),'★  '+p.name);
  Object.entries(state).forEach(([k,v])=>apply(k,v));applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);
+}
+function manageSavedPresets(){
+ if(!savedPresets.length){alert('Belum ada preset tersimpan.');return}
+ const list=savedPresets.map((p,i)=>(i+1)+'. '+p.name).join('\n');
+ const choice=prompt('SAVED PRESETS\n\n'+list+'\n\nKetik nomor untuk LOAD, atau D1/D2... untuk DELETE:');
+ if(!choice)return;
+ const m=choice.trim().toUpperCase().match(/^([LD])(\\d+)$/);
+ const n=m?Number(m[2]):Number(choice);
+ if(!Number.isInteger(n)||n<1||n>savedPresets.length){alert('Pilihan tidak valid.');return}
+ if(m?.[1]==='D'){
+  savedPresets.splice(n-1,1);localStorage.setItem('solarSavedPresets',JSON.stringify(savedPresets));alert('Preset dihapus.');return;
+ }
+ loadSavedPreset(savedPresets[n-1]);
 }
 function wireModelSelector(selector,values,onChange){
  const box=document.querySelector(selector);if(!box)return ()=>{};
@@ -159,6 +174,7 @@ function wireUI(){
  $('start').addEventListener('click',()=>running?stop():start());
  $('presetPrev')?.addEventListener('click',()=>cyclePreset(-1));$('presetNext')?.addEventListener('click',()=>cyclePreset(1));
 $('savePreset')?.addEventListener('click',savePreset);
+$('presetMenu')?.addEventListener('click',manageSavedPresets);
  document.querySelectorAll('.chain-node[data-target]').forEach(n=>n.addEventListener('click',()=>$(n.dataset.target)?.scrollIntoView({behavior:'smooth',block:'center'})));
  document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.fx-modes button').forEach(x=>x.classList.remove('selected'));b.classList.add('selected')}));
  setAmp=wireModelSelector('#ampSelect',['British 800','American Clean','Modern 5150'],applyAmpModel);
