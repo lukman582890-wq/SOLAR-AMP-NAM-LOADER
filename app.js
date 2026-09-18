@@ -22,7 +22,7 @@ function refreshNamBypass(){
 async function initNam(){
  if(!ctx?.audioWorklet)return false;
  try{
-  await ctx.audioWorklet.addModule('./nam-worklet.js?v=46');
+  await ctx.audioWorklet.addModule('./nam-worklet.js?v=47');
   namNode=new AudioWorkletNode(ctx,'solar-nam-processor',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1]});
   namNode.port.onmessage=e=>{
    const d=e.data||{};
@@ -130,14 +130,18 @@ function refreshCab(){
  if(nodes.cabPresence)nodes.cabPresence.gain.value=0;
 }
 function refreshStatusIndicators(){
- const state=namMode?'NAM':(moduleBypass.amp?'BYPASS':'AMP');
- const states={AMP:state==='AMP',NAM:state==='NAM',BYPASS:state==='BYPASS'};
- Object.entries(states).forEach(([name,on])=>{
-  const el=$('state'+name.charAt(0)+name.slice(1).toLowerCase());
-  if(el)el.classList.toggle('selected',on);
- });
- const namEl=$('stateNam');
- if(namEl)namEl.classList.toggle('pending',namPending&&!namMode);
+ const namActive=Boolean(namMode);
+ const ampActive=!namActive&&!moduleBypass.amp;
+ const bypassActive=!namActive&&Boolean(moduleBypass.amp);
+ const ampEl=$('stateAmp');
+ const ampLabel=ampEl?.querySelector('b');
+ if(ampEl){
+  ampEl.classList.toggle('selected',ampActive||namActive);
+  ampEl.classList.toggle('nam-active',namActive);
+  if(ampLabel)ampLabel.textContent=namActive?'NAM':'AMP';
+ }
+ const bypassEl=$('stateBypass');
+ if(bypassEl)bypassEl.classList.toggle('selected',bypassActive);
  const chainMap={od:'odModule',amp:'ampModule',cab:'cabModule',eq:'eqModule',fx:'fxModule'};
  Object.entries(chainMap).forEach(([name,id])=>{
   const node=document.querySelector('.chain-node[data-target="'+id+'"]');
