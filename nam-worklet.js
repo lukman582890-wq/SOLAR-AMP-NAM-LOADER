@@ -29,6 +29,8 @@ class SolarNamProcessor extends AudioWorkletProcessor {
     this.bypassed = true;
     this.processedBlocks = 0;
     this.processErrorSent = false;
+    this.pendingModelJson = '';
+    this.pendingBypass = true;
     this.init();
     this.port.onmessage = e => this.handleMessage(e.data || {});
   }
@@ -41,12 +43,23 @@ class SolarNamProcessor extends AudioWorkletProcessor {
       this.instanceId = this.nam.createInstance();
       this.ready = true;
       this.port.postMessage({ type: 'ready', sampleRate });
+      if (this.pendingModelJson) {
+        const json = this.pendingModelJson;
+        const bypass = this.pendingBypass;
+        this.pendingModelJson = '';
+        this.handleMessage({ type: 'loadModel', modelJson: json, bypass });
+      }
     } catch (error) {
       this.port.postMessage({ type: 'error', message: String(error?.message || error) });
     }
   }
 
   handleMessage(data) {
+    if (data.type === 'loadModel' && !this.ready) {
+      this.pendingModelJson = String(data.modelJson || '');
+      this.pendingBypass = Boolean(data.bypass);
+      return;
+    }
     if (!this.nam || !this.ready) return;
     if (data.type === 'loadModel') {
       try {
