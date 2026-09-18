@@ -197,3 +197,9 @@ main{max-width:1080px!important;padding:12px 14px 22px!important}
  .grille{height:96px!important}.grille div{font-size:27px!important}
  .amp-plate{padding:20px 8px 16px!important}
 }
+
+
+/* Interactive EQ curve */
+.eq-graph svg{touch-action:none;overflow:visible;cursor:crosshair}
+.eq-point{fill:#dffff0;stroke:#78e6a1;stroke-width:2;filter:drop-shadow(0 0 5px rgba(100,255,160,.8));cursor:ns-resize}
+.eq-point:hover{r:7}
