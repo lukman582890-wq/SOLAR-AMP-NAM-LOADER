@@ -22,7 +22,7 @@ function refreshNamBypass(){
 async function initNam(){
  if(!ctx?.audioWorklet)return false;
  try{
-  await ctx.audioWorklet.addModule('./nam-worklet.js?v=53');
+  await ctx.audioWorklet.addModule('./nam-worklet.js?v=54');
   namNode=new AudioWorkletNode(ctx,'solar-nam-processor',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1]});
   return await new Promise(resolve=>{
    let settled=false;
@@ -295,7 +295,7 @@ async function start(){
   nodes.phaserLfo=ctx.createOscillator();nodes.phaserLfoGain=ctx.createGain();nodes.phaserLfo.frequency.value=.32;nodes.phaserLfoGain.gain.value=650;nodes.phaserLfo.connect(nodes.phaserLfoGain).connect(nodes.phaser1.frequency);nodes.phaserLfo.connect(nodes.phaserLfoGain).connect(nodes.phaser2.frequency);nodes.phaserLfo.start();
   const dry=ctx.createGain();dry.gain.value=1;master=ctx.createGain();
   setText($('modelStatus'),namModelJson?'NAM MODEL QUEUED • initializing WASM…':'NAM WASM • initializing…');
-  await initNam();
+  const namInitialized=await initNam();
   s.connect(inputAnalyser);s.connect(gate).connect(nodes.odDrive).connect(nodes.odTone).connect(nodes.odLevel).connect(nodes.ampDrive);if(namNode)nodes.ampDrive.connect(namNode).connect(nodes.ampTone);else nodes.ampDrive.connect(nodes.ampTone);nodes.ampTone.connect(nodes.bass).connect(nodes.mid).connect(nodes.treble).connect(nodes.presence).connect(nodes.low).connect(nodes.high).connect(nodes.cab).connect(nodes.cabPresence);
   nodes.cabPresence.connect(nodes.ir).connect(nodes.eqLow).connect(nodes.eqMid).connect(nodes.eqHigh);
   nodes.eqHigh.connect(dry).connect(master);
@@ -309,7 +309,7 @@ async function start(){
   await applyCabModel(selectedCab);
   for(const file of pendingIRFiles.splice(0))await loadIRFile(file);
   refreshAllBypass();
-  running=true;$('stopAudio')?.removeAttribute('hidden');refreshStatusIndicators();setText($('engine'),'WEB AUDIO');setText($('rate'),ctx.sampleRate+' Hz');setText($('latency'),((ctx.baseLatency||0)*1000).toFixed(1)+' ms');$('start').classList.add('on');$('start').textContent='👍';tick();
+  running=true;$('stopAudio')?.removeAttribute('hidden');refreshStatusIndicators();if(namInitialized)setText($('engine'),'WEB AUDIO');setText($('rate'),ctx.sampleRate+' Hz');setText($('latency'),((ctx.baseLatency||0)*1000).toFixed(1)+' ms');$('start').classList.add('on');$('start').textContent='👍';tick();
  }catch(err){
   setText($('engine'),'AUDIO ERROR');setText($('latency'),err?.name||'Permission denied');
   try{ctx?.close()}catch{}ctx=null;stream?.getTracks().forEach(t=>t.stop());stream=null;
