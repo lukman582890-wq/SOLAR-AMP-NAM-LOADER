@@ -26,7 +26,36 @@ jobs:
           git checkout 16be869746b8915885c7a35bafdcc0061faeb50e
           git submodule update --init --recursive
 
-      - name: Prepare SOLAR AMP branding safely
+      - name: Prepare SOLAR AMP identity
+        shell: pwsh
+        run: |
+          $root = Resolve-Path nam-vst3-source
+          $config = Join-Path $root 'NeuralAmpModeler\config.h'
+          $props = Join-Path $root 'NeuralAmpModeler\config\NeuralAmpModeler-win.props'
+
+          $s = [IO.File]::ReadAllText($config)
+          $s = $s.Replace('#define PLUG_NAME "NeuralAmpModeler"', '#define PLUG_NAME "SOLAR AMP"')
+          $s = $s.Replace('#define PLUG_MFR "Steven Atkinson"', '#define PLUG_MFR "SOLAR AMP"')
+          $s = $s.Replace("#define PLUG_UNIQUE_ID '1YEo'", "#define PLUG_UNIQUE_ID 'SAMP'")
+          $s = $s.Replace("#define PLUG_MFR_ID 'SDAa'", "#define PLUG_MFR_ID 'SLAr'")
+          $s = $s.Replace('#define PLUG_URL_STR "https://github.com/sdatkinson/NeuralAmpModelerPlugin"', '#define PLUG_URL_STR "https://github.com/lukman582890-wq/SOLAR-AMP-NAM-LOADER"')
+          $s = $s.Replace('#define PLUG_EMAIL_STR "spam@me.com"', '#define PLUG_EMAIL_STR "solaramp@users.noreply.github.com"')
+          $s = $s.Replace('#define BUNDLE_NAME "NeuralAmpModeler"', '#define BUNDLE_NAME "SOLAR AMP"')
+          $s = $s.Replace('#define BUNDLE_MFR "StevenAtkinson"', '#define BUNDLE_MFR "SOLARAMP"')
+          $s = $s.Replace('#define SHARED_RESOURCES_SUBPATH "NeuralAmpModeler"', '#define SHARED_RESOURCES_SUBPATH "SOLAR AMP"')
+          [IO.File]::WriteAllText($config, $s, (New-Object Text.UTF8Encoding($false)))
+
+          $p = [IO.File]::ReadAllText($props)
+          $p = $p.Replace('<BINARY_NAME>NeuralAmpModeler</BINARY_NAME>', '<BINARY_NAME>SOLARAMP</BINARY_NAME>')
+          [IO.File]::WriteAllText($props, $p, (New-Object Text.UTF8Encoding($false)))
+
+          if ((Select-String -Path $config -Pattern '#define PLUG_UNIQUE_ID ''1YEo''').Count -gt 0) { throw 'Old NAM unique ID still present.' }
+          if ((Select-String -Path $config -Pattern '#define PLUG_NAME "SOLAR AMP"').Count -eq 0) { throw 'SOLAR AMP plugin name patch failed.' }
+          if ((Select-String -Path $props -Pattern '<BINARY_NAME>SOLARAMP</BINARY_NAME>').Count -eq 0) { throw 'SOLARAMP binary name patch failed.' }
+
+          Write-Host 'SOLAR AMP identity patched: name, manufacturer, unique IDs, bundle name, and Windows binary name.'
+
+      - name: Prepare branding resources
         shell: pwsh
         run: |
           $root = Resolve-Path nam-vst3-source
@@ -36,7 +65,7 @@ jobs:
             $s = $s.Replace('Neural Amp Modeler','SOLAR AMP')
             [IO.File]::WriteAllText($f.FullName,$s,(New-Object Text.UTF8Encoding($false)))
           }
-          Write-Host 'Branding prepared without changing C++ identifiers or include paths.'
+          Write-Host 'Branding resources prepared without changing C++ identifiers or include paths.'
 
       - name: Get iPlug2 SDK
         shell: bash
@@ -67,8 +96,9 @@ jobs:
         run: |
           $vst3 = Get-ChildItem nam-vst3-source -Recurse -Filter '*.vst3' -Directory |
             Where-Object { $_.FullName -notmatch '\\iPlug2\\' } |
+            Where-Object { $_.FullName -notmatch '\\NeuralAmpModeler\.vst3$' } |
             Select-Object -First 1
-          if (-not $vst3) { throw 'No VST3 bundle produced.' }
+          if (-not $vst3) { throw 'No SOLAR AMP VST3 bundle produced.' }
           New-Item -ItemType Directory -Force vst3-dist | Out-Null
           Copy-Item -Recurse $vst3.FullName 'vst3-dist\SOLAR AMP.vst3'
           Write-Host "VST3: $($vst3.FullName)"
@@ -80,6 +110,16 @@ jobs:
           Expand-Archive pluginval.zip -DestinationPath pluginval -Force
           & '.\pluginval\pluginval.exe' --skip-gui-tests --validate-in-process --validate (Resolve-Path 'vst3-dist\SOLAR AMP.vst3')
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify SOLAR AMP bundle identity
+        shell: pwsh
+        run: |
+          $bundle = Resolve-Path 'vst3-dist\SOLAR AMP.vst3'
+          $dll = Get-ChildItem $bundle -Recurse -File -Filter 'SOLARAMP.vst3' | Select-Object -First 1
+          if (-not $dll) { throw 'SOLARAMP.vst3 binary not found inside the bundle.' }
+          Write-Host "Verified binary: $($dll.FullName)"
+          $old = Get-ChildItem $bundle -Recurse -File -Filter 'NeuralAmpModeler.vst3'
+          if ($old) { throw 'Old NeuralAmpModeler.vst3 binary still exists in SOLAR AMP bundle.' }
 
       - name: Package
         shell: pwsh
