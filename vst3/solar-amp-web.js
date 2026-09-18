@@ -5,6 +5,20 @@
   const b64=buf=>{let s='',a=new Uint8Array(buf);for(let i=0;i<a.length;i+=0x8000)s+=String.fromCharCode(...a.subarray(i,i+0x8000));return btoa(s)};
   const byte64=v=>btoa(String.fromCharCode(v?1:0));
   window.__SOLAR_VST3__=true;
+  window.SOLARSetStatus=function(t){
+    const s=String(t||'');
+    const el=document.getElementById('modelStatus');if(el)el.textContent=s;
+    if(/^NAM MODEL - loaded into native DSP/i.test(s)){
+      window.__solarNativeModelLoaded=true;
+      if(typeof namReady!=='undefined')namReady=true;
+      if(typeof namModelLoaded!=='undefined')namModelLoaded=true;
+      if(typeof namMode!=='undefined' && typeof setNamAmpMode==='function')setNamAmpMode(true);
+    }
+    if(/^NAM MODEL ERROR/i.test(s)){
+      window.__solarNativeModelLoaded=false;
+      if(typeof namModelLoaded!=='undefined')namModelLoaded=false;
+    }
+  };
   window.SPVFUI=(idx,value)=>send({msg:'SPVFUI',paramIdx:idx,value:Number(value)});
   window.BPCFUI=idx=>send({msg:'BPCFUI',paramIdx:idx});
   window.EPCFUI=idx=>send({msg:'EPCFUI',paramIdx:idx});
