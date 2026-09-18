@@ -18,22 +18,20 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: Validate JavaScript
         run: node --check app.js
-      - name: Prepare official TONE3000 NAM runtime
+      - name: Prepare official NAM v2 runtime
         run: |
-          rm -rf /tmp/tone-nam
-          git clone --depth 1 https://github.com/tone-3000/neural-amp-modeler-wasm.git /tmp/tone-nam
-          cp /tmp/tone-nam/ui/public/t3k-wasm-module.js .
-          cp /tmp/tone-nam/ui/public/t3k-wasm-module.wasm .
-          cp /tmp/tone-nam/ui/public/t3k-wasm-module.worker.js .
-          cp /tmp/tone-nam/ui/public/t3k-wasm-module.aw.js .
-          cp /tmp/tone-nam/ui/public/t3k-wasm-module.ww.js .
-          cp /tmp/tone-nam/ui/public/models/ac10.nam nam-default.nam
-          test -s t3k-wasm-module.js
-          test -s t3k-wasm-module.wasm
-          test -s t3k-wasm-module.aw.js
-          test -s nam-default.nam
+          mkdir -p /tmp/nam-package
+          npm pack neural-amp-modeler-wasm@2.0.1 --pack-destination /tmp/nam-package
+          tar -xzf /tmp/nam-package/neural-amp-modeler-wasm-2.0.1.tgz -C /tmp/nam-package
+          cp /tmp/nam-package/package/dist/engine/nam-worklet.js ./nam-worklet.js
+          cp /tmp/nam-package/package/dist/engine/nam-engine.wasm ./nam-engine.wasm
+          test -s nam-worklet.js
+          test -s nam-engine.wasm
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
