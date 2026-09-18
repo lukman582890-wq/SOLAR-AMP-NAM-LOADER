@@ -57,7 +57,7 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     // On Windows VST3, BundleResourcePath needs the plug-in module handle.
     // The previous call used the default (NULL) module and could resolve the
     // host process instead of SOLAR AMP's own Contents\\Resources directory.
-    BundleResourcePath(resourcePath, GetBundleID());
+    BundleResourcePath(resourcePath, 0);
     resourcePath.Append("web/index.html");
     LoadFile(resourcePath.Get(), GetBundleID());
     EnableScroll(false);
