@@ -1,4 +1,5 @@
 /* SOLAR AMP native VST3 WebView bridge.
+ * Native UI/DSP integration revision: full app.js is loaded after this bridge.
  * The full UI/interaction logic lives in app.js; this file only bridges
  * iPlug2 WebView messages to the native DSP.
  */
