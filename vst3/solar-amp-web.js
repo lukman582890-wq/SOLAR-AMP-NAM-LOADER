@@ -129,8 +129,9 @@
   }
   function selectFxMode(mode,idx){
     selectedFxMode=mode;
+    const i=Number.isInteger(idx)?idx:Math.max(0,fxModes.indexOf(mode));
     document.querySelectorAll('.fx-modes button').forEach(b=>b.classList.toggle('selected',b.textContent.trim()===mode));
-    sendParam(24,idx/4);
+    sendParam(24,i/4);
   }
 
   async function loadBuiltInIR(name){
