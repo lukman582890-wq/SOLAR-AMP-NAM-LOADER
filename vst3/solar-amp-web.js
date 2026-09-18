@@ -126,6 +126,7 @@
     selectedOd=name;
     if(name==='Off'){knobSetters.drive?.(0);bypass.od=true;sendParam(22,0);}
     else {bypass.od=false;sendParam(22,1);if(name==='Tight OD'){knobSetters.drive?.(48);knobSetters.tone?.(62)}else{knobSetters.drive?.(35);knobSetters.tone?.(50)}}
+    sendModule('od',!bypass.od);
     refreshIndicators();
   }
   function selectEq(name){
@@ -151,7 +152,7 @@
     // 104 is the dedicated native built-in IR selector. Do NOT send 103 here:
     // 103 is the NAM/legacy AMP source selector and must never be used for CAB.
     send({msg:'SAMFUI',msgTag:104,ctrlTag:-1,data:btoa(name)});
-    selectedCab=name;bypass.cab=false;sendParam(8,1);
+    selectedCab=name;bypass.cab=false;sendParam(8,1);sendModule('cab',true);
     if($('cabModel'))$('cabModel').textContent=formatIR(name);
     if($('irStatus'))$('irStatus').textContent='PACK V1 • '+formatIR(name);
     refreshIndicators();
@@ -164,7 +165,7 @@
       selectedCab=file.name;
       if($('cabModel'))$('cabModel').textContent=file.name;
       if($('irStatus'))$('irStatus').textContent='CUSTOM • native DSP loading';
-      bypass.cab=false;sendParam(8,1);refreshIndicators();
+      bypass.cab=false;sendParam(8,1);sendModule('cab',true);refreshIndicators();
     }catch(e){setStatus('IR ERROR • '+e.message)}
   }
 
