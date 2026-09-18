@@ -27,14 +27,14 @@ async function initNam(){
   namNode.port.onmessage=e=>{
    const d=e.data||{};
    if(d.type==='ready'){namReady=true;setText($('modelStatus'),'NAM WASM READY • '+d.sampleRate+' Hz');if(namModelJson)loadNamModel(namModelJson)}
-   if(d.type==='modelLoaded'){namModelLoaded=Boolean(d.success&&d.hasModel);setText($('modelStatus'),namModelLoaded?'NAM LOADED • WASM • waiting for DSP':'NAM MODEL LOAD FAILED');refreshDrive();refreshNamBypass()}
+   if(d.type==='modelLoaded'){namModelLoaded=Boolean(d.success&&d.hasModel);setNamAmpMode(namModelLoaded);setText($('modelStatus'),namModelLoaded?'NAM LOADED • AMP stage replaced • waiting for DSP':'NAM MODEL LOAD FAILED');refreshDrive();refreshAmpTone();refreshNamBypass()}
    if(d.type==='processing'&&namModelLoaded){setText($('modelStatus'),'NAM ACTIVE • real WASM inference • '+d.blocks+' blocks');setText($('engine'),'NAM WASM')}
-   if(d.type==='processError'){namModelLoaded=false;setText($('modelStatus'),'NAM DSP ERROR • '+(d.message||'processing failed'));setText($('engine'),'NAM WASM ERROR');refreshDrive();refreshNamBypass()}
-   if(d.type==='error'||d.type==='modelError'){namReady=false;namModelLoaded=false;setText($('modelStatus'),'NAM WASM ERROR • '+(d.message||'unknown error'));refreshDrive();refreshNamBypass()}
+   if(d.type==='processError'){namModelLoaded=false;setNamAmpMode(false);setText($('modelStatus'),'NAM DSP ERROR • '+(d.message||'processing failed'));setText($('engine'),'NAM WASM ERROR');refreshDrive();refreshNamBypass()}
+   if(d.type==='error'||d.type==='modelError'){namReady=false;namModelLoaded=false;setNamAmpMode(false);setText($('modelStatus'),'NAM WASM ERROR • '+(d.message||'unknown error'));refreshDrive();refreshNamBypass()}
   };
   return true;
  }catch(err){
-  namNode=null;namReady=false;namModelLoaded=false;setText($('modelStatus'),'NAM WASM UNAVAILABLE • Web Audio fallback');
+  namNode=null;namReady=false;namModelLoaded=false;setNamAmpMode(false);setText($('modelStatus'),'NAM WASM UNAVAILABLE • Web Audio fallback');
   return false;
  }
 }
@@ -64,17 +64,35 @@ function refreshDrive(){
  if(nodes.odTone)nodes.odTone.frequency.value=odOn?(350+state.tone*72):20000;
  if(nodes.odLevel)nodes.odLevel.gain.value=odOn?state.level/100:1;
 }
+function setNamAmpMode(active){
+ const section=$('ampModule');
+ if(section){
+  section.classList.toggle('nam-active',Boolean(active));
+  const select=$('ampSelect');
+  select?.querySelectorAll('button').forEach(b=>b.disabled=Boolean(active));
+  const knobs=$('amp');
+  if(knobs){
+   knobs.style.pointerEvents=active?'none':'';
+   knobs.style.opacity=active?'.45':'';
+   knobs.setAttribute('aria-disabled',String(Boolean(active)));
+  }
+  const label=$('ampModel');
+  if(label)label.title=active?'AMP controls are bypassed while a NAM model is active':'';
+ }
+}
 function refreshAmpTone(){
  if(!ctx)return;
- const q=moduleBypass.amp?0:1;
- if(nodes.ampTone)nodes.ampTone.frequency.value=moduleBypass.amp?20000:(nodes._ampToneFrequency||7000);
+ // A loaded NAM is the complete AMP stage. Do not color or reshape its output
+ // with the legacy AMP controls; those controls are locked in the UI.
+ const namActive=Boolean(namModelLoaded);
+ const q=(moduleBypass.amp||namActive)?0:1;
+ if(nodes.ampTone)nodes.ampTone.frequency.value=(moduleBypass.amp||namActive)?20000:(nodes._ampToneFrequency||7000);
  if(nodes.bass)nodes.bass.gain.value=(state.bass-50)*.24*q;
  if(nodes.mid)nodes.mid.gain.value=(state.mid-50)*.24*q;
  if(nodes.treble)nodes.treble.gain.value=(state.treble-50)*.24*q;
  if(nodes.presence)nodes.presence.gain.value=(state.presence-50)*.22*q;
- // AMP bypass must pass the signal through the complete AMP section transparently.
- if(nodes.low)nodes.low.frequency.value=moduleBypass.amp?1:40+state.low*1.2;
- if(nodes.high)nodes.high.frequency.value=moduleBypass.amp?20000:4000+state.high*60;
+ if(nodes.low)nodes.low.frequency.value=(moduleBypass.amp||namActive)?1:40+state.low*1.2;
+ if(nodes.high)nodes.high.frequency.value=(moduleBypass.amp||namActive)?20000:4000+state.high*60;
 }
 function refreshEq(){
  if(!ctx)return;
