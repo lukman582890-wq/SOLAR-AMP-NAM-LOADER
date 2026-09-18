@@ -492,6 +492,31 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
       // Source selector: 1 = NAM, 0 = native legacy AMP.
       mNamActive = dataSize > 0 && pData && (*reinterpret_cast<const uint8_t*>(pData) != 0);
       return true;
+
+    case 104:
+      // Built-in CAB/IR selector. The WebView sends the plain UTF-8 filename
+      // (without extension) after iPlug has decoded the base64 payload.
+      try
+      {
+        if (!pData || dataSize <= 0 || dataSize > 256)
+          throw std::runtime_error("Invalid built-in IR name.");
+        std::string name(reinterpret_cast<const char*>(pData), dataSize);
+        if (name.find("..") != std::string::npos || name.find('/') != std::string::npos || name.find('\\') != std::string::npos)
+          throw std::runtime_error("Invalid IR name.");
+        WDL_String resources;
+        BundleResourcePath(resources, GetBundleID());
+        resources.Append("web/ir/");
+        resources.Append(name.c_str());
+        resources.Append(".wav");
+        const auto rc = _StageIR(resources);
+        setStatus(rc == dsp::wav::LoadReturnCode::SUCCESS ? "CAB • built-in IR loaded" : "CAB • built-in IR load failed");
+      }
+      catch (const std::exception& e)
+      {
+        setStatus(std::string("CAB IR ERROR • ") + e.what());
+      }
+      return true;
+
     default: return false;
   }
 }
