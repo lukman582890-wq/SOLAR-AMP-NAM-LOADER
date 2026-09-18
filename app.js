@@ -2,14 +2,19 @@ let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,ra
 const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const state={gain:25,bass:100,mid:50,treble:50,presence:50,master:100,drive:35,tone:50,level:72,mic:50,low:50,high:70,delay:28,reverb:22,eqLow:50,eqMid:50,eqHigh:50};
 const presets=[
- {name:'Default Preset',amp:'British 800',od:'Tube Screamer',cab:'4x12 V30',fx:'Hall Reverb'},
- {name:'Clean Glass',amp:'American Clean',od:'Off',cab:'2x12 Blue',fx:'Plate Reverb'},
- {name:'Modern High Gain',amp:'Modern 5150',od:'Tight OD',cab:'4x12 V30',fx:'Studio Hall'}
+ {name:'Default Preset',amp:'British 800',od:'Tube Screamer',cab:'6100_ZCB_57_API',fx:'Hall Reverb'},
+ {name:'Clean Glass',amp:'American Clean',od:'Off',cab:'6100_ZCB_421_API',fx:'Plate Reverb'},
+ {name:'Modern High Gain',amp:'Modern 5150',od:'Tight OD',cab:'6505_ZCB_57_API',fx:'Studio Hall'}
 ];
 let presetIndex=0;let savedPresets=[];try{savedPresets=JSON.parse(localStorage.getItem('solarSavedPresets')||'[]');if(!Array.isArray(savedPresets))savedPresets=[]}catch{savedPresets=[]}let selectedAmp='British 800',selectedOd='Tube Screamer',selectedEq='Default',selectedCab='4x12 V30',selectedFx='Hall Reverb',selectedFxMode='DELAY';let setAmp,setOd,setEq,setCab,setFx;let knobSetters={};let ampBaseDrive=.52,odBaseDrive=.34,fxBaseDelay=.42,fxBaseReverb=.30;let irBuffer=null,irName='';let irFiles=new Map();let pendingIRFiles=[];let identityIRBuffer=null;const irPackV1=['6100_ZCB_57_API','6100_ZCB_57_NV','6100_ZCB_57OFF_API','6100_ZCB_57OFF_NV','6100_ZCB_201_API','6100_ZCB_201_NV','6100_ZCB_421_API','6100_ZCB_421_NV','6100_ZCB_906_API','6100_ZCB_906_NV','6505_ZCB_57_API','6505_ZCB_57_NV','6505_ZCB_57OFF_API','6505_ZCB_57OFF_NV','6505_ZCB_201_API','6505_ZCB_201_NV','6505_ZCB_421_API','6505_ZCB_421_NV','6505_ZCB_906_API','6505_ZCB_906_NV'];
 const $=id=>document.getElementById(id);
 function curve(k){const c=new Float32Array(44100);for(let i=0;i<c.length;i++){const x=i*2/c.length-1;c[i]=Math.tanh(k*x*4)/Math.tanh(k*4)}return c}
 function setText(el,t){if(el)el.textContent=t}
+function formatIRName(name){
+ const m=String(name||'').match(/^(6100|6505)_ZCB_(57OFF|57|201|421|906)_(API|NV)$/i);
+ if(!m)return String(name||'').replace(/\.(wav|aiff?|flac)$/i,'');
+ return m[1].toUpperCase()+' • '+m[2].toUpperCase().replace('57OFF','57 OFF')+' • '+m[3].toUpperCase();
+}
 function refreshFx(){
  if(!ctx)return;
  const d=state.delay/100,r=state.reverb/100,m=selectedFxMode,q=moduleBypass.fx?0:1;
@@ -136,9 +141,9 @@ async function start(){
   nodes.eqHigh.connect(dry).connect(master);
   nodes.eqHigh.connect(delay).connect(nodes.dw).connect(master);
   nodes.eqHigh.connect(rev).connect(nodes.rw).connect(master);
-  nodes.cabPresence.connect(nodes.chorusDelay).connect(nodes.chorusGain).connect(master);
-  nodes.cabPresence.connect(nodes.tremolo).connect(master);
-  nodes.cabPresence.connect(nodes.phaser1).connect(nodes.phaser2).connect(nodes.phaserGain).connect(master);
+  nodes.eqHigh.connect(nodes.chorusDelay).connect(nodes.chorusGain).connect(master);
+  nodes.eqHigh.connect(nodes.tremolo).connect(master);
+  nodes.eqHigh.connect(nodes.phaser1).connect(nodes.phaser2).connect(nodes.phaserGain).connect(master);
   master.connect(outputAnalyser).connect(ctx.destination);
   Object.entries(state).forEach(([k,v])=>apply(k,v));applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);applyFxModel(selectedFx);applyFxMode(selectedFxMode);
   await applyCabModel(selectedCab);
@@ -209,7 +214,7 @@ function manageSavedPresets(){
 function wireModelSelector(selector,values,onChange){
  const box=document.querySelector(selector);if(!box)return ()=>{};
  let i=0;const label=box.querySelector('strong'),buttons=box.querySelectorAll('button');
- function update(){if(label)label.textContent=values[i];onChange?.(values[i],i)}
+ function update(){if(label)label.textContent=selector==='#cabSelect'?formatIRName(values[i]):values[i];onChange?.(values[i],i)}
  const set=value=>{const n=values.indexOf(value);if(n>=0){i=n;update()}};
  buttons[0]?.addEventListener('click',()=>{i=(i-1+values.length)%values.length;update()});
  buttons[1]?.addEventListener('click',()=>{i=(i+1)%values.length;update()});update();return set;
@@ -273,7 +278,7 @@ async function applyCabModel(name){
    if(!r.ok)throw new Error('HTTP '+r.status);
    const decoded=await ctx.decodeAudioData(await r.arrayBuffer());
    irBuffer=decoded;irName=name;irFiles.set(name,{buffer:decoded});renderIRLibrary();
-   setText($('cabModel'),name);setText($('irStatus'),'PACK V1 • '+name);refreshCab();return;
+   setText($('cabModel'),formatIRName(name));setText($('irStatus'),'PACK V1 • '+formatIRName(name));refreshCab();return;
   }catch(err){
    setText($('irStatus'),'PACK V1 LOAD ERROR');console.error('IR load failed',name,err);
   }
@@ -284,7 +289,7 @@ function renderIRLibrary(){
  const box=$('irLibrary');if(!box)return;box.innerHTML='';
  irFiles.forEach((v,name)=>{
   const b=document.createElement('button');b.type='button';b.className='ir-item';b.textContent=name;b.title=name;
-  b.addEventListener('click',()=>{irBuffer=v.buffer;irName=name;selectedCab=name;setText($('cabModel'),name.replace(/\.(wav|aiff?|flac)$/i,''));setText($('irStatus'),irPackV1.includes(name)?'PACK V1 • '+name:'CUSTOM • '+name);refreshCab()});
+  b.addEventListener('click',()=>{irBuffer=v.buffer;irName=name;selectedCab=name;setText($('cabModel'),formatIRName(name));setText($('irStatus'),irPackV1.includes(name)?'PACK V1 • '+formatIRName(name):'CUSTOM • '+name);refreshCab()});
   box.appendChild(b);
  });
 }
@@ -294,7 +299,7 @@ async function loadIRFile(file){
  try{
   const buf=await file.arrayBuffer();const decoded=await ctx.decodeAudioData(buf.slice(0));
   irBuffer=decoded;irName=file.name;selectedCab=file.name;irFiles.set(file.name,{buffer:decoded});renderIRLibrary();
-  setText($('cabModel'),file.name.replace(/\.(wav|aiff?|flac)$/i,''));setText($('irStatus'),'CUSTOM • '+file.name);refreshCab();
+  setText($('cabModel'),formatIRName(file.name));setText($('irStatus'),'CUSTOM • '+file.name);refreshCab();
  }catch(e){setText($('irStatus'),'IR LOAD ERROR');console.error('Custom IR load failed',e)}
 }
 function saveIRLocal(name,buffer){try{const data=buffer.getChannelData(0);const arr=new Float32Array(data);localStorage.setItem('solarLastIRName',name);localStorage.setItem('solarLastIR',btoa(String.fromCharCode(...new Uint8Array(arr.buffer))));}catch{}}
