@@ -67,6 +67,7 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
   GetParam(kFXActive)->InitBool("FX Active", true);
   GetParam(kFXMode)->InitEnum("FX Mode", 0, {"DELAY", "REVERB", "CHORUS", "PHASER", "TREMOLO"});
   GetParam(kAmpModel)->InitEnum("AMP Model", 0, {"British 800", "American Clean", "Modern 5150"});
+  GetParam(kAmpMaster)->InitDouble("AMP Master", 100.0, 0.0, 100.0, 1.0, "%");
 
   mNoiseGateTrigger.AddListener(&mNoiseGateGain);
 
@@ -197,6 +198,38 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
       mOutputArray[0][s] = pState * static_cast<float>(pGain) + x - pState;
     }
   }
+
+  // Legacy AMP tone controls live here, before CAB. They are deliberately
+  // skipped when NAM is active so NAM is not colored by the old AMP stage.
+  if (!nativeAmpBypass && !namActive)
+  {
+    const sr = sampleRate;
+    const lowAlpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * 180.0 / sr);
+    const highAlpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * 4200.0 / sr);
+    const lowGain = std::pow(10.0, ((GetParam(kToneBass)->Value() - 5.0) * 2.4) / 20.0);
+    const midGain = std::pow(10.0, ((GetParam(kToneMid)->Value() - 5.0) * 2.4) / 20.0);
+    const highGain = std::pow(10.0, ((GetParam(kToneTreble)->Value() - 5.0) * 2.4) / 20.0);
+    for (size_t s = 0; s < numFrames; ++s)
+    {
+      const float x = mOutputPointers[0][s];
+      mAmpLowState += static_cast<float>(lowAlpha) * (x - mAmpLowState);
+      mAmpHighState += static_cast<float>(highAlpha) * (x - mAmpHighState);
+      const float low = mAmpLowState;
+      const float high = x - mAmpHighState;
+      const float mid = x - low - high;
+      mOutputPointers[0][s] = low * static_cast<float>(lowGain)
+                            + mid * static_cast<float>(midGain)
+                            + high * static_cast<float>(highGain);
+    }
+  }
+
+  // AMP Master is the final level of the AMP block. It is independent from
+  // NAM's Output parameter, so the UI's 0..100% control is not converted to
+  // the old +/-40 dB Output parameter by accident.
+  const float ampMaster = static_cast<float>(GetParam(kAmpMaster)->Value() / 100.0);
+  for (size_t s = 0; s < numFrames; ++s)
+    mOutputPointers[0][s] *= ampMaster;
+
   // Apply the noise gate after the NAM
   sample** gateGainOutput =
     noiseGateActive ? mNoiseGateGain.Process(mOutputPointers, numChannelsInternal, numFrames) : mOutputPointers;
@@ -336,6 +369,8 @@ void NeuralAmpModeler::OnReset()
   mDelayWritePos = 0;
   mReverbWritePos = 0;
   mODToneState = 0.0f;
+  mAmpLowState = 0.0f;
+  mAmpHighState = 0.0f;
   mEQLowState = 0.0f;
   mEQHighState = 0.0f;
   mAmpState = 0.0f;
