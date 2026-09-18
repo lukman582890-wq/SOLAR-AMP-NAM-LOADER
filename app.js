@@ -6,7 +6,7 @@ const presets=[
  {name:'Clean Glass',amp:'American Clean',od:'Off',cab:'2x12 Blue',fx:'Plate Reverb'},
  {name:'Modern High Gain',amp:'Modern 5150',od:'Tight OD',cab:'4x12 V30',fx:'Studio Hall'}
 ];
-let presetIndex=0;let selectedAmp='British 800',selectedOd='Tube Screamer',selectedEq='Default';let setAmp,setOd,setEq;
+let presetIndex=0;let savedPresets=JSON.parse(localStorage.getItem('solarSavedPresets')||'[]');let selectedAmp='British 800',selectedOd='Tube Screamer',selectedEq='Default';let setAmp,setOd,setEq;
 const $=id=>document.getElementById(id);
 function curve(k){const c=new Float32Array(44100);for(let i=0;i<c.length;i++){const x=i*2/c.length-1;c[i]=Math.tanh(k*x*4)/Math.tanh(k*4)}return c}
 function setText(el,t){if(el)el.textContent=t}
@@ -107,6 +107,16 @@ function updatePreset(){
  setText($('cabModel'),p.cab);setText($('fxModel'),p.fx);
 }
 function cyclePreset(dir){presetIndex=(presetIndex+dir+presets.length)%presets.length;updatePreset()}
+function savePreset(){
+ const name=prompt('Nama preset:',String($('presetName')?.textContent||'My Preset').trim())?.trim();if(!name)return;
+ const p={name,amp:selectedAmp,od:selectedOd,eq:selectedEq,cab:$('cabModel')?.textContent||'4x12 V30',fx:$('fxModel')?.textContent||'Hall Reverb',state:{...state}};
+ savedPresets=savedPresets.filter(x=>x.name!==name);savedPresets.push(p);localStorage.setItem('solarSavedPresets',JSON.stringify(savedPresets));alert('Preset tersimpan: '+name);
+}
+function loadSavedPreset(p){
+ Object.assign(state,p.state||{});
+ setAmp?.(p.amp||'British 800');setOd?.(p.od||'Tube Screamer');setEq?.(p.eq||'Default');setText($('cabModel'),p.cab||'4x12 V30');setText($('fxModel'),p.fx||'Hall Reverb');
+ Object.entries(state).forEach(([k,v])=>apply(k,v));applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);
+}
 function wireModelSelector(selector,values,onChange){
  const box=document.querySelector(selector);if(!box)return ()=>{};
  let i=0;const label=box.querySelector('strong'),buttons=box.querySelectorAll('button');
@@ -148,6 +158,7 @@ function applyOdModel(name){
 function wireUI(){
  $('start').addEventListener('click',()=>running?stop():start());
  $('presetPrev')?.addEventListener('click',()=>cyclePreset(-1));$('presetNext')?.addEventListener('click',()=>cyclePreset(1));
+$('savePreset')?.addEventListener('click',savePreset);
  document.querySelectorAll('.chain-node[data-target]').forEach(n=>n.addEventListener('click',()=>$(n.dataset.target)?.scrollIntoView({behavior:'smooth',block:'center'})));
  document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.fx-modes button').forEach(x=>x.classList.remove('selected'));b.classList.add('selected')}));
  setAmp=wireModelSelector('#ampSelect',['British 800','American Clean','Modern 5150'],applyAmpModel);
