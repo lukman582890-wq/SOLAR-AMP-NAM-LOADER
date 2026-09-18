@@ -317,9 +317,8 @@ main{width:100%;max-width:1080px;margin-inline:auto}
 .status-pill.selected{opacity:1}
 .status-pill.amp-state.selected{border-color:#42d8a1;background:#102019;color:#75f0c5;box-shadow:0 0 12px rgba(66,216,161,.12),inset 0 1px #fff2}
 .status-pill.amp-state.selected i{background:#48e7a0;box-shadow:0 0 8px #48e7a0}
-.status-pill.nam-state.selected{border-color:#d0923c;background:#24190b;color:#ffc15a;box-shadow:0 0 13px rgba(229,161,47,.16),inset 0 1px #fff2}
-.status-pill.nam-state.selected i{background:#ffb83f;box-shadow:0 0 8px #ffb83f}
-.status-pill.nam-state.pending{opacity:1;border-style:dashed;border-color:#b8792b;background:#1b140b;color:#eeb35a;box-shadow:0 0 9px rgba(229,161,47,.09),inset 0 1px #fff1}
+.status-pill.amp-state.nam-active{border-color:#d0923c;background:#24190b;color:#ffc15a;box-shadow:0 0 13px rgba(229,161,47,.16),inset 0 1px #fff2}
+.status-pill.amp-state.nam-active i{background:#ffb83f;box-shadow:0 0 8px #ffb83f}
 .status-pill.bypass-state.selected{border-color:#69747b;background:#1a1f22;color:#d0d5d8;box-shadow:inset 0 1px #fff1}
 .status-pill.bypass-state.selected i{background:#aeb7bc;box-shadow:0 0 5px #aeb7bc}
 @media(max-width:650px){.mode-status{align-items:flex-start}.status-pills{overflow-x:auto;padding-bottom:2px}.status-pill{min-width:88px}}
