@@ -65,7 +65,8 @@ function refreshDrive(){
  if(nodes.odLevel)nodes.odLevel.gain.value=odOn?state.level/100:1;
 }
 function setNamAmpMode(active){
- namMode=Boolean(active)&&Boolean(namModelLoaded)&&Boolean(namReady);\n if(namModelLoaded)moduleBypass.amp=false;
+ namMode=Boolean(active)&&Boolean(namModelLoaded)&&Boolean(namReady);
+ if(namModelLoaded)moduleBypass.amp=false;
  const section=$('ampModule');
  if(section){
   section.classList.toggle('nam-active',namMode);
@@ -273,8 +274,13 @@ function loadSavedPreset(p){
 }
 function manageSavedPresets(){
  if(!savedPresets.length){alert('Belum ada preset tersimpan.');return}
- const list=savedPresets.map((p,i)=>(i+1)+'. '+p.name).join('\n');
- const choice=prompt('SAVED PRESETS\n\n'+list+'\n\nKetik nomor untuk LOAD, atau D1/D2... untuk DELETE:');
+ const list=savedPresets.map((p,i)=>(i+1)+'. '+p.name).join('
+');
+ const choice=prompt('SAVED PRESETS
+
+'+list+'
+
+Ketik nomor untuk LOAD, atau D1/D2... untuk DELETE:');
  if(!choice)return;
  const m=choice.trim().toUpperCase().match(/^([LD])(\\d+)$/);
  const n=m?Number(m[2]):Number(choice);
