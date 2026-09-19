@@ -16,6 +16,7 @@
 #include "IPlug_include_in_plug_src.h"
 #include "IPlugPaths.h"
 #include <fstream>
+#include <nlohmann/json.hpp>
 // clang-format on
 #include "architecture.hpp"
 
@@ -123,9 +124,9 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   // audio thread; the NAM remains the main amp-modeling stage.
   if (mODActive.load())
   {
-    const double drive = GetParam(kODDrive)->Value() / 100.0;
-    const double tone = GetParam(kODTone)->Value() / 100.0;
-    const double level = GetParam(kODLevel)->Value() / 100.0;
+    const double drive = mODDrivePct.load() / 100.0;
+    const double tone = mODTonePct.load() / 100.0;
+    const double level = mODLevelPct.load() / 100.0;
     const double amount = 1.0 + drive * 19.0;
     const double norm = std::tanh(amount);
     const double sr = sampleRate;
@@ -174,8 +175,8 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
     // Native SOLAR AMP legacy stage. This is deliberately simple and stable:
     // profile-dependent pre-gain + soft clipping, followed by the shared tone
     // stack below. The NAM source is completely separate from this path.
-    const double gain = GetParam(kInputLevel)->GetNormalized();
-    const int profile = GetParam(kAmpModel)->Int();
+    const double gain = mGainPct.load() / 100.0;
+    const int profile = std::clamp(mAmpModelNative.load(), 0, 2);
     const double profileDrive = profile == 1 ? 0.38 : (profile == 2 ? 1.65 : 1.05);
     const double amount = 0.35 + gain * 5.0 * profileDrive;
     const double norm = std::tanh(std::max(0.35, amount));
@@ -187,7 +188,7 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
       mOutputArray[0][s] = mAmpState;
     }
     // Presence is a native post-amp high-frequency tilt.
-    const double presence = (GetParam(kAmpPresence)->Value() - 50.0) / 50.0;
+    const double presence = (mPresencePct.load() - 50.0) / 50.0;
     const double pGain = std::pow(10.0, presence * 6.0 / 20.0);
     const double pAlpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * 3200.0 / sampleRate);
     float pState = 0.0f;
@@ -206,9 +207,9 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
     const double sr = sampleRate;
     const double lowAlpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * 180.0 / sr);
     const double highAlpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * 4200.0 / sr);
-    const double lowGain = std::pow(10.0, ((GetParam(kToneBass)->Value() - 5.0) * 2.4) / 20.0);
-    const double midGain = std::pow(10.0, ((GetParam(kToneMid)->Value() - 5.0) * 2.4) / 20.0);
-    const double highGain = std::pow(10.0, ((GetParam(kToneTreble)->Value() - 5.0) * 2.4) / 20.0);
+    const double lowGain = std::pow(10.0, ((mBassPct.load() - 50.0) * 4.8) / 20.0);
+    const double midGain = std::pow(10.0, ((mMidPct.load() - 50.0) * 4.8) / 20.0);
+    const double highGain = std::pow(10.0, ((mTreblePct.load() - 50.0) * 4.8) / 20.0);
     for (size_t s = 0; s < numFrames; ++s)
     {
       const float x = mOutputPointers[0][s];
@@ -226,9 +227,12 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   // AMP Master is the final level of the AMP block. It is independent from
   // NAM's Output parameter, so the UI's 0..100% control is not converted to
   // the old +/-40 dB Output parameter by accident.
-  const float ampMaster = static_cast<float>(GetParam(kAmpMaster)->Value() / 100.0);
-  for (size_t s = 0; s < numFrames; ++s)
-    mOutputPointers[0][s] *= ampMaster;
+  if (!nativeAmpBypass)
+  {
+    const float ampMaster = static_cast<float>(mMasterPct.load() / 100.0);
+    for (size_t s = 0; s < numFrames; ++s)
+      mOutputPointers[0][s] *= ampMaster;
+  }
 
   // Apply the noise gate after the NAM
   sample** gateGainOutput =
@@ -256,9 +260,9 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
     const double sr = sampleRate;
     const double lowAlpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * 180.0 / sr);
     const double highAlpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * 4200.0 / sr);
-    const double lowGain = std::pow(10.0, ((GetParam(kEQLow)->Value() - 50.0) * 24.0 / 100.0) / 20.0);
-    const double midGain = std::pow(10.0, ((GetParam(kEQMid)->Value() - 50.0) * 24.0 / 100.0) / 20.0);
-    const double highGain = std::pow(10.0, ((GetParam(kEQHigh)->Value() - 50.0) * 24.0 / 100.0) / 20.0);
+    const double lowGain = std::pow(10.0, ((mEQLowPct.load() - 50.0) * 24.0 / 100.0) / 20.0);
+    const double midGain = std::pow(10.0, ((mEQMidPct.load() - 50.0) * 24.0 / 100.0) / 20.0);
+    const double highGain = std::pow(10.0, ((mEQHighPct.load() - 50.0) * 24.0 / 100.0) / 20.0);
     for (size_t s = 0; s < numFrames; ++s)
     {
       const float x = hpfPointers[0][s];
@@ -276,8 +280,8 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   if (mFXActive.load() && !mDelayBuffer.empty())
   {
     const int mode = mFXModeNative.load();
-    const double wetDelay = GetParam(kFXDelay)->Value() / 100.0;
-    const double wetReverb = GetParam(kFXReverb)->Value() / 100.0;
+    const double wetDelay = mFXDelayPct.load() / 100.0;
+    const double wetReverb = mFXReverbPct.load() / 100.0;
     const double sr = sampleRate;
     const double baseDelay = 0.08 + wetDelay * 0.52;
     const size_t reverbSamples = std::min(mReverbBuffer.size() - 1, static_cast<size_t>(0.23 * sr));
@@ -553,6 +557,53 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
       if (!pData || dataSize < 1) return false;
       mFXModeNative = std::clamp<int>(*reinterpret_cast<const uint8_t*>(pData), 0, 4);
       return true;
+
+    case 112:
+      // Direct SOLAR AMP control bus. This is independent from host automation
+      // so WebView controls always have an immediate native DSP destination.
+      try
+      {
+        if (!pData || dataSize <= 0 || dataSize > 4096)
+          throw std::runtime_error("Invalid SOLAR AMP control packet.");
+        const std::string raw(reinterpret_cast<const char*>(pData), dataSize);
+        const auto j = nlohmann::json::parse(raw, nullptr, false);
+        if (j.is_discarded() || !j.is_object())
+          throw std::runtime_error("Invalid SOLAR AMP control JSON.");
+        auto setFloat = [&](const char* key, std::atomic<float>& dst)
+        {
+          if (j.contains(key) && j[key].is_number())
+            dst.store(std::clamp(j[key].get<float>(), 0.0f, 100.0f));
+        };
+        setFloat("gain", mGainPct);
+        setFloat("bass", mBassPct);
+        setFloat("mid", mMidPct);
+        setFloat("treble", mTreblePct);
+        setFloat("presence", mPresencePct);
+        setFloat("master", mMasterPct);
+        setFloat("odDrive", mODDrivePct);
+        setFloat("odTone", mODTonePct);
+        setFloat("odLevel", mODLevelPct);
+        setFloat("eqLow", mEQLowPct);
+        setFloat("eqMid", mEQMidPct);
+        setFloat("eqHigh", mEQHighPct);
+        setFloat("fxDelay", mFXDelayPct);
+        setFloat("fxReverb", mFXReverbPct);
+        if (j.contains("ampModel") && j["ampModel"].is_number_integer())
+          mAmpModelNative.store(std::clamp(j["ampModel"].get<int>(), 0, 2));
+        if (j.contains("odActive") && j["odActive"].is_boolean()) mODActive.store(j["odActive"].get<bool>());
+        if (j.contains("eqActive") && j["eqActive"].is_boolean()) mEQActive.store(j["eqActive"].get<bool>());
+        if (j.contains("cabActive") && j["cabActive"].is_boolean()) mCabActive.store(j["cabActive"].get<bool>());
+        if (j.contains("fxActive") && j["fxActive"].is_boolean()) mFXActive.store(j["fxActive"].get<bool>());
+        if (j.contains("fxMode") && j["fxMode"].is_number_integer()) mFXModeNative.store(std::clamp(j["fxMode"].get<int>(), 0, 4));
+        if (j.contains("ampBypass") && j["ampBypass"].is_boolean()) mNativeAmpBypass.store(j["ampBypass"].get<bool>());
+        if (j.contains("namActive") && j["namActive"].is_boolean()) mNamActive.store(j["namActive"].get<bool>());
+        return true;
+      }
+      catch (const std::exception& e)
+      {
+        setStatus(std::string("CONTROL ERROR - ") + e.what());
+        return false;
+      }
 
     case 104:
       // Built-in CAB/IR selector. The WebView sends the plain UTF-8 filename
