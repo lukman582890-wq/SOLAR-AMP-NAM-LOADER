@@ -88,6 +88,17 @@ jobs:
         run: |
           .\vst3\prepare-solar-webview.ps1
 
+      - name: Validate SOLAR AMP WebView JavaScript
+        shell: pwsh
+        run: |
+          node --check 'vst3\\solar-amp-web.js'
+          if ($LASTEXITCODE -ne 0) { throw 'SOLAR AMP WebView JavaScript syntax check failed.' }
+          $js = Get-Content 'vst3\\solar-amp-web.js' -Raw
+          foreach ($needle in @('function toggleModule','function applyCabModel','function applyFxMode','SAMFUI(110','SPVFUI(24')) {
+            if ($js.IndexOf($needle) -lt 0) { throw "Required WebView feature bridge missing: $needle" }
+          }
+          Write-Host 'SOLAR AMP WebView JavaScript syntax/features verified.'
+
       - name: Get iPlug2 SDK
         shell: bash
         working-directory: nam-vst3-source
