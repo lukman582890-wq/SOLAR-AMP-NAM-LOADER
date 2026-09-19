@@ -206,9 +206,9 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
     const double sr = sampleRate;
     const double lowAlpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * 180.0 / sr);
     const double highAlpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * 4200.0 / sr);
-    const lowGain = std::pow(10.0, ((GetParam(kToneBass)->Value() - 5.0) * 2.4) / 20.0);
-    const midGain = std::pow(10.0, ((GetParam(kToneMid)->Value() - 5.0) * 2.4) / 20.0);
-    const highGain = std::pow(10.0, ((GetParam(kToneTreble)->Value() - 5.0) * 2.4) / 20.0);
+    const double lowGain = std::pow(10.0, ((GetParam(kToneBass)->Value() - 5.0) * 2.4) / 20.0);
+    const double midGain = std::pow(10.0, ((GetParam(kToneMid)->Value() - 5.0) * 2.4) / 20.0);
+    const double highGain = std::pow(10.0, ((GetParam(kToneTreble)->Value() - 5.0) * 2.4) / 20.0);
     for (size_t s = 0; s < numFrames; ++s)
     {
       const float x = mOutputPointers[0][s];
