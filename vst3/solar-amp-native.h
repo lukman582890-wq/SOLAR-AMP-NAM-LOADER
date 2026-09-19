@@ -239,6 +239,23 @@ public:
   std::atomic<bool> mCabActive{true};
   std::atomic<bool> mFXActive{true};
   std::atomic<int> mFXModeNative{0};
+  // Direct WebView control state. The WebView UI remains responsive even when
+  // a host does not propagate automation parameter updates back to the audio thread.
+  std::atomic<float> mGainPct{25.0f};
+  std::atomic<float> mBassPct{100.0f};
+  std::atomic<float> mMidPct{50.0f};
+  std::atomic<float> mTreblePct{50.0f};
+  std::atomic<float> mPresencePct{50.0f};
+  std::atomic<float> mMasterPct{100.0f};
+  std::atomic<float> mODDrivePct{35.0f};
+  std::atomic<float> mODTonePct{50.0f};
+  std::atomic<float> mODLevelPct{72.0f};
+  std::atomic<float> mEQLowPct{50.0f};
+  std::atomic<float> mEQMidPct{50.0f};
+  std::atomic<float> mEQHighPct{50.0f};
+  std::atomic<float> mFXDelayPct{28.0f};
+  std::atomic<float> mFXReverbPct{22.0f};
+  std::atomic<int> mAmpModelNative{0};
   std::vector<float> mDelayBuffer;
   std::vector<float> mReverbBuffer;
   size_t mDelayWritePos = 0;
