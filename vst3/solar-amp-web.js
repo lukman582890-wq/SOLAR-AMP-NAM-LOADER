@@ -57,7 +57,7 @@ async function initNamEngine(){
  })();
  return namEnginePromise;
 }
-async async function loadNamModel(json){if(!json)throw Error('NAM model is empty');namModelJson=String(json);namPending=true;setText($('modelStatus'),'NAM MODEL • sending to native DSP…');try{SAMFUI(100,-1,namModelJson);namModelLoaded=true;namReady=true;namPending=false;setText($('modelStatus'),'NAM MODEL • sent to native DSP');refreshStatusIndicators();return true}catch(e){namModelLoaded=false;namReady=false;setText($('modelStatus'),'NAM MODEL ERROR • '+(e?.message||e));refreshStatusIndicators();throw e}}
+async function loadNamModel(json){if(!json)throw Error('NAM model is empty');namModelJson=String(json);namPending=true;setText($('modelStatus'),'NAM MODEL • sending to native DSP…');try{SAMFUI(100,-1,namModelJson);namModelLoaded=true;namReady=true;namPending=false;setText($('modelStatus'),'NAM MODEL • sent to native DSP');refreshStatusIndicators();return true}catch(e){namModelLoaded=false;namReady=false;setText($('modelStatus'),'NAM MODEL ERROR • '+(e?.message||e));refreshStatusIndicators();throw e}}
 
 function refreshFx(){SPVFUI(20,state.delay/100);SPVFUI(21,state.reverb/100);SPVFUI(23,moduleBypass.fx?0:1);const modes={DELAY:0,REVERB:1,CHORUS:2,PHASER:3,TREMOLO:4};SPVFUI(24,(modes[selectedFxMode]??0)/4)}
 function refreshDrive(){SPVFUI(14,state.drive/100);SPVFUI(15,state.tone/100);SPVFUI(16,state.level/100)}
@@ -86,7 +86,7 @@ function setNamAmpMode(active){
  }
  refreshDrive();refreshAmpTone();refreshNamBypass();refreshStatusIndicators();
 }
-async async function toggleAmpSource(){if(!namModelLoaded||!namModelJson){setText($('modelStatus'),'NO NAM MODEL • choose a .NAM file first');return}const next=!namMode;namMode=next;namSourceActive=next;SAMFUI(103,-1,byte64(next));if(next&&moduleBypass.amp){moduleBypass.amp=false;SAMFUI(102,-1,byte64(false))}refreshAllBypass();refreshNamBypass();setText($('modelStatus'),next?'NAM ACTIVE • native DSP':'AMP ACTIVE • native legacy amp')}
+async function toggleAmpSource(){if(!namModelLoaded||!namModelJson){setText($('modelStatus'),'NO NAM MODEL • choose a .NAM file first');return}const next=!namMode;namMode=next;namSourceActive=next;SAMFUI(103,-1,byte64(next));if(next&&moduleBypass.amp){moduleBypass.amp=false;SAMFUI(102,-1,byte64(false))}refreshAllBypass();refreshNamBypass();setText($('modelStatus'),next?'NAM ACTIVE • native DSP':'AMP ACTIVE • native legacy amp')}
 function refreshAmpTone(){SPVFUI(0,Math.max(0,Math.min(1,state.gain/100)));SPVFUI(2,state.bass/100);SPVFUI(3,state.mid/100);SPVFUI(4,state.treble/100);SPVFUI(13,state.presence/100);SPVFUI(26,state.master/100)}
 function refreshEq(){SPVFUI(17,state.eqLow/100);SPVFUI(18,state.eqMid/100);SPVFUI(19,state.eqHigh/100);eqGraph.low=(state.eqLow-50)*.24;eqGraph.mid=(state.eqMid-50)*.24;eqGraph.high=(state.eqHigh-50)*.24;updateEqGraph()}
 function refreshCab(){SPVFUI(8,moduleBypass.cab?0:1)}
@@ -152,7 +152,7 @@ function impulse(sec,decay){
  for(let c=0;c<2;c++){const a=b.getChannelData(c);for(let i=0;i<a.length;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/a.length,decay)}
  return b;
 }
-async async function start(){if(running)return;running=true;namReady=true;$('start')?.classList.add('on');if($('start'))$('start').textContent='👍';$('stopAudio')?.removeAttribute('hidden');setText($('engine'),'NATIVE DSP');setText($('rate'),'HOST');setText($('latency'),'NATIVE');refreshAllBypass();refreshStatusIndicators();setText($('modelStatus'),namModelLoaded?'NATIVE NAM • READY':'NATIVE AMP • READY')}
+async function start(){if(running)return;running=true;namReady=true;$('start')?.classList.add('on');if($('start'))$('start').textContent='👍';$('stopAudio')?.removeAttribute('hidden');setText($('engine'),'NATIVE DSP');setText($('rate'),'HOST');setText($('latency'),'NATIVE');refreshAllBypass();refreshStatusIndicators();setText($('modelStatus'),namModelLoaded?'NATIVE NAM • READY':'NATIVE AMP • READY')}
 function stop(){running=false;namReady=false;namSourceActive=false;$('stopAudio')?.setAttribute('hidden','');$('start')?.classList.remove('on');if($('start'))$('start').textContent='🖕';setText($('engine'),'NATIVE DSP');setText($('rate'),'HOST');setText($('latency'),'NATIVE');refreshStatusIndicators()}
 function tick(){}
 function updatePreset(){
@@ -232,7 +232,7 @@ function wireEqGraph(){
 function applyAmpModel(name){selectedAmp=name;const p={'British 800':0,'American Clean':1,'Modern 5150':2}[name]??0;SPVFUI(25,p/2)}
 function applyEqModel(name){selectedEq=name;const profiles={'Default':[50,50,50],'V-Curve':[66.7,29.2,66.7],'Mid Focus':[41.7,70.8,45.8]};const p=profiles[name]||profiles.Default;state.eqLow=p[0];state.eqMid=p[1];state.eqHigh=p[2];knobSetters.eqLow?.(state.eqLow);knobSetters.eqMid?.(state.eqMid);knobSetters.eqHigh?.(state.eqHigh);refreshEq()}
 function applyOdModel(name){selectedOd=name;const p={'Tube Screamer':[35,50,72,true],'Tight OD':[48,58,70,true],'Off':[0,50,100,false]}[name]||[35,50,72,true];state.drive=p[0];state.tone=p[1];state.level=p[2];SPVFUI(14,p[0]/100);SPVFUI(15,p[1]/100);SPVFUI(16,p[2]/100);SPVFUI(22,p[3]?1:0);moduleBypass.od=!p[3];const icon=document.querySelector('.module-bypass[data-module="od"]');if(icon){icon.textContent=moduleBypass.od?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass.od)}}
-async async function applyCabModel(name){selectedCab=name;if(!name)return;setText($('cabModel'),formatIRName(name));setText($('irStatus'),'CAB • loading native IR…');try{SAMFUI(104,-1,btoa(unescape(encodeURIComponent(String(name)))));setText($('irStatus'),'CAB • native IR '+formatIRName(name))}catch(e){setText($('irStatus'),'CAB IR ERROR • '+(e?.message||e))}}
+async function applyCabModel(name){selectedCab=name;if(!name)return;setText($('cabModel'),formatIRName(name));setText($('irStatus'),'CAB • loading native IR…');try{SAMFUI(104,-1,btoa(unescape(encodeURIComponent(String(name)))));setText($('irStatus'),'CAB • native IR '+formatIRName(name))}catch(e){setText($('irStatus'),'CAB IR ERROR • '+(e?.message||e))}}
 function renderIRLibrary(){
  const box=$('irLibrary');if(!box)return;box.innerHTML='';
  irFiles.forEach((v,name)=>{
@@ -241,7 +241,7 @@ function renderIRLibrary(){
   box.appendChild(b);
  });
 }
-async async function loadIRFile(file){if(!file)return;try{const u=new Uint8Array(await file.arrayBuffer());let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode(...u.subarray(i,i+0x8000));SAMFUI(101,-1,btoa(s));irName=file.name;selectedCab=file.name;setText($('cabModel'),formatIRName(file.name));setText($('irStatus'),'NATIVE DSP • loading '+file.name)}catch(e){setText($('irStatus'),'IR LOAD ERROR • '+(e?.message||e))}}
+async function loadIRFile(file){if(!file)return;try{const u=new Uint8Array(await file.arrayBuffer());let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode(...u.subarray(i,i+0x8000));SAMFUI(101,-1,btoa(s));irName=file.name;selectedCab=file.name;setText($('cabModel'),formatIRName(file.name));setText($('irStatus'),'NATIVE DSP • loading '+file.name)}catch(e){setText($('irStatus'),'IR LOAD ERROR • '+(e?.message||e))}}
 function saveIRLocal(name,buffer){try{const data=buffer.getChannelData(0);const arr=new Float32Array(data);localStorage.setItem('solarLastIRName',name);localStorage.setItem('solarLastIR',btoa(String.fromCharCode(...new Uint8Array(arr.buffer))));}catch{}}
 
 function applyFxModel(name){selectedFx=name;const p={'Hall Reverb':[42,30],'Plate Reverb':[18,38],'Room Reverb':[10,20],'Studio Hall':[32,34]}[name]||[42,30];state.delay=p[0];state.reverb=p[1];refreshFx()}
