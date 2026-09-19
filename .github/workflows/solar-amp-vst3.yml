@@ -94,7 +94,7 @@ jobs:
           node --check 'vst3\\solar-amp-web.js'
           if ($LASTEXITCODE -ne 0) { throw 'SOLAR AMP WebView JavaScript syntax check failed.' }
           $js = Get-Content 'vst3\\solar-amp-web.js' -Raw
-          foreach ($needle in @('function toggleModule','function applyCabModel','function applyFxMode','SAMFUI(110','SPVFUI(24')) {
+          foreach ($needle in @('function toggleModule','function applyCabModel','function applyFxMode','SAMFUI(100','SAMFUI(101','SAMFUI(104','msgTag:112','function SOLARCTRL')) {
             if ($js.IndexOf($needle) -lt 0) { throw "Required WebView feature bridge missing: $needle" }
           }
           Write-Host 'SOLAR AMP WebView JavaScript syntax/features verified.'
