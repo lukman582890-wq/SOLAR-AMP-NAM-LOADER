@@ -1,3 +1,23 @@
+// iPlug2 WebView bridge. The native WebView injects IPlugSendMsg(), but it does NOT
+// inject the SPVFUI/SAMFUI helper functions from the example web script, so the
+// SOLAR AMP VST3 keeps its own explicit bridge here.
+function _solarSend(msg){
+ if(typeof IPlugSendMsg!=='function') throw new Error('iPlugSendMsg bridge is unavailable');
+ IPlugSendMsg(msg);
+}
+function SPVFD(paramIdx,val){ if(window.SOLARParamFromHost) window.SOLARParamFromHost(paramIdx,val); }
+function SCVFD(ctrlTag,val){ if(window.SOLARControlFromHost) window.SOLARControlFromHost(ctrlTag,val); }
+function SCMFD(ctrlTag,msgTag,msg){ if(window.SOLARMessageFromHost) window.SOLARMessageFromHost(ctrlTag,msgTag,msg); }
+function SAMFD(msgTag,dataSize,msg){ if(window.SOLARMessageFromHost) window.SOLARMessageFromHost(msgTag,dataSize,msg); }
+function SMMFD(statusByte,dataByte1,dataByte2){ if(window.SOLARMidiFromHost) window.SOLARMidiFromHost(statusByte,dataByte1,dataByte2); }
+function SSMFD(offset,size,msg){ if(window.SOLARSysexFromHost) window.SOLARSysexFromHost(offset,size,msg); }
+function SAMFUI(msgTag,ctrlTag=-1,data=0){ _solarSend({msg:'SAMFUI',msgTag,ctrlTag,data}); }
+function SMMFUI(statusByte,dataByte1,dataByte2){ _solarSend({msg:'SMMFUI',statusByte,dataByte1,dataByte2}); }
+function SSMFUI(data=0){ _solarSend({msg:'SSMFUI',data}); }
+function EPCFUI(paramIdx){ if(paramIdx>=0) _solarSend({msg:'EPCFUI',paramIdx:parseInt(paramIdx)}); }
+function BPCFUI(paramIdx){ if(paramIdx>=0) _solarSend({msg:'BPCFUI',paramIdx:parseInt(paramIdx)}); }
+function SPVFUI(paramIdx,value){ if(paramIdx>=0) _solarSend({msg:'SPVFUI',paramIdx:parseInt(paramIdx),value}); }
+
 let ctx,stream,inputAnalyser,outputAnalyser,master,nodes={};let running=false,raf,installEvent;let namNode=null,namReady=false,namModelLoaded=false,namMode=false,namSourceActive=false,namSourceRequested=false,namPending=false,namModelJson='';const moduleBypass={amp:false,od:false,eq:false,cab:false,fx:false};let eqGraph={low:0,mid:0,high:0};
 const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const state={gain:25,bass:100,mid:50,treble:50,presence:50,master:100,drive:35,tone:50,level:72,mic:50,low:50,high:70,delay:28,reverb:22,eqLow:50,eqMid:50,eqHigh:50};
