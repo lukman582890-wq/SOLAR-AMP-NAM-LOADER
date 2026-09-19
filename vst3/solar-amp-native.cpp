@@ -203,7 +203,7 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   // skipped when NAM is active so NAM is not colored by the old AMP stage.
   if (!nativeAmpBypass && !namActive)
   {
-    const sr = sampleRate;
+    const double sr = sampleRate;
     const lowAlpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * 180.0 / sr);
     const highAlpha = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * 4200.0 / sr);
     const lowGain = std::pow(10.0, ((GetParam(kToneBass)->Value() - 5.0) * 2.4) / 20.0);
