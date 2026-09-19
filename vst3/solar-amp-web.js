@@ -1,6 +1,7 @@
 // iPlug2 WebView bridge. The native WebView injects IPlugSendMsg(), but it does NOT
 // inject the SPVFUI/SAMFUI helper functions from the example web script, so the
 // SOLAR AMP VST3 keeps its own explicit bridge here.
+function byte64(value){ const n=Math.max(0,Math.min(255,Number(value)||0)); return btoa(String.fromCharCode(n)); }
 function _solarSend(msg){
  if(typeof IPlugSendMsg!=='function') throw new Error('iPlugSendMsg bridge is unavailable');
  IPlugSendMsg(msg);
