@@ -247,7 +247,19 @@ function saveIRLocal(name,buffer){try{const data=buffer.getChannelData(0);const 
 function applyFxModel(name){selectedFx=name;const p={'Hall Reverb':[42,30],'Plate Reverb':[18,38],'Room Reverb':[10,20],'Studio Hall':[32,34]}[name]||[42,30];state.delay=p[0];state.reverb=p[1];refreshFx()}
 function applyFxMode(mode){selectedFxMode=mode;document.querySelectorAll('.fx-modes button').forEach(x=>x.classList.toggle('selected',x.textContent.trim()===mode));refreshFx()}
 function wireUI(){$('start')?.addEventListener('click',()=>{if(!running)start();else toggleModule('amp')});$('stopAudio')?.addEventListener('click',stop);$('presetPrev')?.addEventListener('click',()=>cyclePreset(-1));$('presetNext')?.addEventListener('click',()=>cyclePreset(1));$('savePreset')?.addEventListener('click',savePreset);$('presetMenu')?.addEventListener('click',manageSavedPresets);document.querySelectorAll('.chain-node[data-target]').forEach(n=>n.addEventListener('click',()=>$(n.dataset.target)?.scrollIntoView({behavior:'smooth',block:'center'})));setAmp=wireModelSelector('#ampSelect',['British 800','American Clean','Modern 5150'],applyAmpModel);setOd=wireModelSelector('#odSelect',['Tube Screamer','Tight OD','Off'],applyOdModel);setEq=wireModelSelector('#eqSelect',['Default','V-Curve','Mid Focus'],applyEqModel);wireEqGraph();setCab=wireModelSelector('#cabSelect',irPackV1,applyCabModel);document.querySelector('#irInput')?.addEventListener('change',async e=>{for(const f of [...(e.target.files||[])])await loadIRFile(f);e.target.value=''});renderIRLibrary();setFx=wireModelSelector('#fxSelect',['Hall Reverb','Plate Reverb','Room Reverb','Studio Hall'],applyFxModel);setFxMode=applyFxMode;document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>applyFxMode(b.textContent.trim())));document.querySelectorAll('.module-bypass[data-module]:not(#start)').forEach(icon=>icon.addEventListener('click',()=>toggleModule(icon.dataset.module)));$('sourceSwitch')?.addEventListener('click',()=>toggleAmpSource());$('nam')?.addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;setText($('fileName'),f.name);try{const u=new Uint8Array(await f.arrayBuffer());let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode(...u.subarray(i,i+0x8000));namModelJson=btoa(s);namModelLoaded=false;namReady=true;namPending=true;namMode=false;SAMFUI(100,-1,namModelJson);setText($('modelStatus'),f.name+' • sent to native NAM DSP');refreshStatusIndicators()}catch(e){namModelJson='';setText($('modelStatus'),'NAM LOAD ERROR • '+(e?.message||e))}})}
-window.SOLARSetStatus=t=>setText($('modelStatus'),t);
+window.SOLARSetStatus=t=>{
+ const msg=String(t??'');
+ setText($('modelStatus'),msg);
+ if(/^NAM MODEL - loaded into native DSP/i.test(msg)){
+   namModelLoaded=true;namReady=true;namPending=false;
+   refreshStatusIndicators();
+ }else if(/^NAM MODEL ERROR/i.test(msg)){
+   namModelLoaded=false;namReady=false;namPending=false;namMode=false;namSourceActive=false;
+   refreshStatusIndicators();
+ }else if(/^IR - loaded into native DSP/i.test(msg)||/^CAB • built-in IR loaded/i.test(msg)){
+   refreshCab();
+ }
+};
 wireUI();updatePreset();
 makeKnobs('amp',['GAIN','BASS','MID','TREBLE','PRESENCE','MASTER']);
 makeKnobs('od',['DRIVE','TONE','LEVEL']);
