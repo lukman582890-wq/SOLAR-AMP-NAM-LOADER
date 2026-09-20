@@ -26,6 +26,7 @@ $html=$html.Replace('<link rel="manifest" href="manifest.webmanifest">','')
 # The PWA app.js owns Web Audio and must NEVER run inside the native VST3.
 # The VST3 has one and only one UI controller: solar-amp-web.js.
 $html=[regex]::Replace($html,'<script src="app\.js[^"]*"></script>','<script src="solar-amp-web.js"></script>')
+$html=$html.Replace('accept="audio/wav,.wav,.aiff,.aif,.flac"','accept="audio/wav,.wav"')
 [IO.File]::WriteAllText((Join-Path $web 'index.html'),$html,(New-Object Text.UTF8Encoding($false)))
 
 $c=[IO.File]::ReadAllText((Join-Path $root 'NeuralAmpModeler\config.h'))
