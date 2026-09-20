@@ -438,23 +438,113 @@ void NeuralAmpModeler::OnUIOpen()
 
 void NeuralAmpModeler::OnParamChange(int paramIdx)
 {
+  // IMPORTANT: the SOLAR AMP WebView uses the normal iPlug parameter path
+  // (SPVFUI). Keep the native DSP state synchronized here as the authoritative
+  // processor-side control path. The separate WebView message bus remains only
+  // for controls that are not ordinary parameters (NAM payload/source and
+  // built-in IR selection).
   switch (paramIdx)
   {
+    case kInputLevel:
+      _SetInputGain();
+      mGainPct.store(static_cast<float>(GetParam(paramIdx)->GetNormalized() * 100.0));
+      break;
+
+    case kToneBass:
+      mToneStack->SetParam("bass", GetParam(paramIdx)->Value());
+      mBassPct.store(static_cast<float>(GetParam(paramIdx)->GetNormalized() * 100.0));
+      break;
+
+    case kToneMid:
+      mToneStack->SetParam("middle", GetParam(paramIdx)->Value());
+      mMidPct.store(static_cast<float>(GetParam(paramIdx)->GetNormalized() * 100.0));
+      break;
+
+    case kToneTreble:
+      mToneStack->SetParam("treble", GetParam(paramIdx)->Value());
+      mTreblePct.store(static_cast<float>(GetParam(paramIdx)->GetNormalized() * 100.0));
+      break;
+
+    case kAmpPresence:
+      mPresencePct.store(static_cast<float>(GetParam(paramIdx)->GetNormalized() * 100.0));
+      break;
+
+    case kAmpMaster:
+      mMasterPct.store(static_cast<float>(GetParam(paramIdx)->GetNormalized() * 100.0));
+      break;
+
+    case kODDrive:
+      mODDrivePct.store(static_cast<float>(GetParam(paramIdx)->GetNormalized() * 100.0));
+      break;
+
+    case kODTone:
+      mODTonePct.store(static_cast<float>(GetParam(paramIdx)->GetNormalized() * 100.0));
+      break;
+
+    case kODLevel:
+      mODLevelPct.store(static_cast<float>(GetParam(paramIdx)->GetNormalized() * 100.0));
+      break;
+
+    case kEQLow:
+      mEQLowPct.store(static_cast<float>(GetParam(paramIdx)->GetNormalized() * 100.0));
+      break;
+
+    case kEQMid:
+      mEQMidPct.store(static_cast<float>(GetParam(paramIdx)->GetNormalized() * 100.0));
+      break;
+
+    case kEQHigh:
+      mEQHighPct.store(static_cast<float>(GetParam(paramIdx)->GetNormalized() * 100.0));
+      break;
+
+    case kFXDelay:
+      mFXDelayPct.store(static_cast<float>(GetParam(paramIdx)->GetNormalized() * 100.0));
+      break;
+
+    case kFXReverb:
+      mFXReverbPct.store(static_cast<float>(GetParam(paramIdx)->GetNormalized() * 100.0));
+      break;
+
+    case kAmpModel:
+      mAmpModelNative.store(GetParam(paramIdx)->Int());
+      break;
+
+    case kODActive:
+      mODActive.store(GetParam(paramIdx)->Bool());
+      break;
+
+    case kEQActive:
+      mEQActive.store(GetParam(paramIdx)->Bool());
+      break;
+
+    case kIRToggle:
+      mCabActive.store(GetParam(paramIdx)->Bool());
+      break;
+
+    case kFXActive:
+      mFXActive.store(GetParam(paramIdx)->Bool());
+      break;
+
+    case kFXMode:
+      mFXModeNative.store(GetParam(paramIdx)->Int());
+      break;
+
     case kCalibrateInput:
     case kInputCalibrationLevel:
-    case kInputLevel: _SetInputGain(); break;
+      _SetInputGain();
+      break;
+
     case kOutputLevel:
-    case kOutputMode: _SetOutputGain(); break;
-    case kToneBass: mToneStack->SetParam("bass", GetParam(paramIdx)->Value()); break;
-    case kToneMid: mToneStack->SetParam("middle", GetParam(paramIdx)->Value()); break;
-    case kToneTreble: mToneStack->SetParam("treble", GetParam(paramIdx)->Value()); break;
-    case kODActive: mODActive = GetParam(paramIdx)->Bool(); break;
-    case kEQActive: mEQActive = GetParam(paramIdx)->Bool(); break;
-    case kIRToggle: mCabActive = GetParam(paramIdx)->Bool(); break;
-    case kFXActive: mFXActive = GetParam(paramIdx)->Bool(); break;
-    case kFXMode: mFXModeNative = GetParam(paramIdx)->Int(); break;
-    case kSlim: _ApplySlimParamToLoadedNAMs(); break;
-    default: break;
+    case kOutputMode:
+      _SetOutputGain();
+      break;
+
+    case kSlim:
+      _ApplySlimParamToLoadedNAMs();
+      break;
+
+    default:
+      break;
   }
 }
 
