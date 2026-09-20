@@ -198,10 +198,14 @@ function loadSavedPreset(p){
  else setCab?.(p.cab||irPackV1[0]);
  setFx?.(p.fx||'Hall Reverb');setFxMode?.(p.fxMode||'DELAY');
  setText($('presetName'),'★  '+p.name);
+
+ // Restore bypass state before pushing the final DSP snapshot so native DSP,
+ // host parameters, icons and the WebView cannot disagree after a preset load.
  Object.entries(moduleBypass).forEach(([k])=>moduleBypass[k]=Boolean(p.bypass?.[k]));
  document.querySelectorAll('.module-bypass[data-module]').forEach(icon=>{const n=icon.dataset.module;icon.textContent=moduleBypass[n]?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass[n]);icon.setAttribute('aria-pressed',String(!moduleBypass[n]))});
  Object.entries(state).forEach(([k,v])=>knobSetters[k]?.(v));
  applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);applyCabModel(selectedCab);applyFxModel(selectedFx);applyFxMode(selectedFxMode);
+ refreshAllBypass();refreshNamBypass();refreshStatusIndicators();
 }
 function manageSavedPresets(){
  if(!savedPresets.length){alert('Belum ada preset tersimpan.');return}
