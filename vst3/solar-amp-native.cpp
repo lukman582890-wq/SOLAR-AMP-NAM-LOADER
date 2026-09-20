@@ -102,6 +102,8 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
 
 NeuralAmpModeler::~NeuralAmpModeler()
 {
+  mModelAudioPtr.store(nullptr, std::memory_order_release);
+  mIRAudioPtr.store(nullptr, std::memory_order_release);
   _DeallocateIOPointers();
 }
 
@@ -113,9 +115,17 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   const size_t numFrames = (size_t)nFrames;
   const double sampleRate = GetSampleRate();
 
-  // Commit staged NAM/IR objects before selecting the active source. This
-  // removes the one-block "NAM loaded but AMP still active" race.
-  _ApplyDSPStaging();
+  // Live NAM/IR ownership is managed by OnIdle. The audio thread only
+  // observes atomic raw pointers and is counted so retired objects cannot be
+  // destroyed while an audio block is still using them.
+  mAudioReaders.fetch_add(1, std::memory_order_acquire);
+  struct AudioReadGuard
+  {
+    std::atomic<uint32_t>& readers;
+    ~AudioReadGuard() { readers.fetch_sub(1, std::memory_order_release); }
+  } audioReadGuard{mAudioReaders};
+  ResamplingNAM* audioModel = mModelAudioPtr.load(std::memory_order_acquire);
+  dsp::ImpulseResponse* audioIR = mIRAudioPtr.load(std::memory_order_acquire);
 
   // Disable floating point denormals
   std::fenv_t fe_state;
@@ -149,7 +159,7 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   }
 
   const bool nativeAmpBypass = mNativeAmpBypass.load();
-  const bool namActive = mNamActive.load() && mModel != nullptr;
+  const bool namActive = mNamActive.load() && audioModel != nullptr;
   const bool noiseGateActive = GetParam(kNoiseGateActive)->Value();
   // Noise gate trigger
   sample** triggerOutput = mInputPointers;
@@ -174,7 +184,7 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   }
   else if (namActive)
   {
-    mModel->process(triggerOutput, mOutputPointers, nFrames);
+    audioModel->process(triggerOutput, mOutputPointers, nFrames);
   }
   else
   {
@@ -248,8 +258,8 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   // the EQ module below is the only post-amp tone stage. This keeps a loaded
   // NAM model isolated from the legacy AMP controls.
   sample** irPointers = gateGainOutput;
-  if (mIR != nullptr && mCabActive.load())
-    irPointers = mIR->Process(gateGainOutput, numChannelsInternal, numFrames);
+  if (audioIR != nullptr && mCabActive.load())
+    irPointers = audioIR->Process(gateGainOutput, numChannelsInternal, numFrames);
 
   // And the HPF for DC offset (Issue 271)
   const double highPassCutoffFreq = kDCBlockerFrequency;
@@ -398,6 +408,11 @@ void NeuralAmpModeler::OnReset()
 
 void NeuralAmpModeler::OnIdle()
 {
+  // DSP ownership changes happen here, never from ProcessBlock(). This keeps
+  // mutexes, unique_ptr destruction and model/IR replacement off the realtime
+  // audio thread.
+  _ApplyDSPStaging();
+
   mInputSender.TransmitData(*this);
   mOutputSender.TransmitData(*this);
 
@@ -789,14 +804,16 @@ void NeuralAmpModeler::_AllocateIOPointers(const size_t nChans)
 
 void NeuralAmpModeler::_ApplyDSPStaging()
 {
-  // All staged ownership changes happen under one short mutex-protected
-  // critical section. Model/IR construction is performed before this function,
-  // so the audio thread only swaps ownership and updates lightweight state.
+  // This function is called from OnIdle(), never from ProcessBlock().
+  // The audio thread only holds atomic raw pointers into these owned objects.
   std::lock_guard<std::mutex> lock(mDSPStageMutex);
 
   if (mShouldRemoveModel.exchange(false))
   {
-    mModel = nullptr;
+    // Publish nullptr first so no new audio block can acquire the old object.
+    mModelAudioPtr.store(nullptr, std::memory_order_release);
+    if (mModel != nullptr)
+      mRetiredModels.push_back(std::move(mModel));
     mNAMPath.Set("");
     mStagedNAMPath.Set("");
     mModelCleared = true;
@@ -807,16 +824,24 @@ void NeuralAmpModeler::_ApplyDSPStaging()
 
   if (mShouldRemoveIR.exchange(false))
   {
-    mIR = nullptr;
+    mIRAudioPtr.store(nullptr, std::memory_order_release);
+    if (mIR != nullptr)
+      mRetiredIRs.push_back(std::move(mIR));
     mIRPath.Set("");
     mStagedIRPath.Set("");
   }
 
   if (mStagedModel != nullptr)
   {
+    if (mModel != nullptr)
+      mRetiredModels.push_back(std::move(mModel));
+
     mModel = std::move(mStagedModel);
     mNAMPath = mStagedNAMPath;
     mStagedNAMPath.Set("");
+
+    // Publish only after ownership is established.
+    mModelAudioPtr.store(mModel.get(), std::memory_order_release);
     mNewModelLoadedInDSP = true;
     _UpdateLatency();
     _SetInputGain();
@@ -825,10 +850,22 @@ void NeuralAmpModeler::_ApplyDSPStaging()
 
   if (mStagedIR != nullptr)
   {
+    if (mIR != nullptr)
+      mRetiredIRs.push_back(std::move(mIR));
+
     mIR = std::move(mStagedIR);
     mIRPath = mStagedIRPath;
     mStagedIRPath.Set("");
+    mIRAudioPtr.store(mIR.get(), std::memory_order_release);
     mNewIRLoadedInDSP = true;
+  }
+
+  // Old DSP objects are safe to destroy only after the pointer swap and after
+  // every audio block that could have acquired the old pointer has finished.
+  if (mAudioReaders.load(std::memory_order_acquire) == 0)
+  {
+    mRetiredModels.clear();
+    mRetiredIRs.clear();
   }
 }
 
