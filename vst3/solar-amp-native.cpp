@@ -874,6 +874,7 @@ void NeuralAmpModeler::_ResetModelAndIR(const double sampleRate, const int maxBl
     {
       const auto irData = mStagedIR->GetData();
       mStagedIR = std::make_unique<dsp::ImpulseResponse>(irData, sampleRate);
+      mStagedIRPath = mIRPath;
     }
   }
   else if (mIR != nullptr)
@@ -883,6 +884,7 @@ void NeuralAmpModeler::_ResetModelAndIR(const double sampleRate, const int maxBl
     {
       const auto irData = mIR->GetData();
       mStagedIR = std::make_unique<dsp::ImpulseResponse>(irData, sampleRate);
+      mStagedIRPath = mIRPath;
     }
   }
 }
@@ -944,11 +946,6 @@ void NeuralAmpModeler::_ApplySlimParamToLoadedNAMs()
 
 std::string NeuralAmpModeler::_StageModel(const WDL_String& modelPath)
 {
-  WDL_String previousNAMPath;
-  {
-    std::lock_guard<std::mutex> lock(mDSPStageMutex);
-    previousNAMPath = mNAMPath;
-  }
   try
   {
     auto dspPath = std::filesystem::u8path(modelPath.Get());
@@ -979,14 +976,10 @@ std::string NeuralAmpModeler::_StageModel(const WDL_String& modelPath)
   }
   catch (std::runtime_error& e)
   {
+    // Never destroy a previously accepted staged model because a later load
+    // attempt failed. The last successfully staged object remains available
+    // for the audio thread to commit.
     SendControlMsgFromDelegate(kCtrlTagModelFileBrowser, kMsgTagLoadFailed, 0, nullptr);
-
-    {
-      std::lock_guard<std::mutex> lock(mDSPStageMutex);
-      mStagedModel = nullptr;
-      mStagedNAMPath.Set("");
-      mNAMPath = previousNAMPath;
-    }
     std::cerr << "Failed to read DSP module" << std::endl;
     std::cerr << e.what() << std::endl;
     return e.what();
@@ -996,13 +989,6 @@ std::string NeuralAmpModeler::_StageModel(const WDL_String& modelPath)
 
 dsp::wav::LoadReturnCode NeuralAmpModeler::_StageIR(const WDL_String& irPath)
 {
-  // FIXME it'd be better for the path to be "staged" as well. Just in case the
-  // path and the model got caught on opposite sides of the fence...
-  WDL_String previousIRPath;
-  {
-    std::lock_guard<std::mutex> lock(mDSPStageMutex);
-    previousIRPath = mIRPath;
-  }
   const double sampleRate = GetSampleRate();
   dsp::wav::LoadReturnCode wavState = dsp::wav::LoadReturnCode::ERROR_OTHER;
   try
@@ -1021,20 +1007,7 @@ dsp::wav::LoadReturnCode NeuralAmpModeler::_StageIR(const WDL_String& irPath)
     wavState = dsp::wav::LoadReturnCode::ERROR_OTHER;
     std::cerr << "Caught unhandled exception while attempting to load IR:" << std::endl;
     std::cerr << e.what() << std::endl;
-  }
-
-  if (wavState == dsp::wav::LoadReturnCode::SUCCESS)
-  {
-    // The live path is committed with the staged IR in _ApplyDSPStaging().
-  }
-  else
-  {
-    {
-      std::lock_guard<std::mutex> lock(mDSPStageMutex);
-      mStagedIR = nullptr;
-      mStagedIRPath.Set("");
-    }
-    mIRPath = previousIRPath;
+    // Preserve any previously accepted staged IR on failure.
     SendControlMsgFromDelegate(kCtrlTagIRFileBrowser, kMsgTagLoadFailed, 0, nullptr);
   }
 
