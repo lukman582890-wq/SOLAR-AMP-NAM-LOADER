@@ -108,8 +108,8 @@ function setNamAmpMode(active){
  }
  refreshDrive();refreshAmpTone();refreshNamBypass();refreshStatusIndicators();
 }
-async function toggleAmpSource(){if(!namModelLoaded||!namModelJson){setText($('modelStatus'),'NO NAM MODEL • choose a .NAM file first');return}const next=!namMode;namMode=next;namSourceActive=next;SAMFUI(103,-1,byte64(next));if(next&&moduleBypass.amp){moduleBypass.amp=false;SAMFUI(102,-1,byte64(false))}SOLARCTRL({namActive:next,ampBypass:moduleBypass.amp});refreshAllBypass();refreshNamBypass();setText($('modelStatus'),next?'NAM ACTIVE • native DSP':'AMP ACTIVE • native legacy amp')}
-function refreshAmpTone(){SPVFUI(0,Math.max(0,Math.min(1,state.gain/100)));SPVFUI(2,state.bass/100);SPVFUI(3,state.mid/100);SPVFUI(4,state.treble/100);SPVFUI(13,state.presence/100);SPVFUI(26,state.master/100);SOLARCTRL({gain:state.gain,bass:state.bass,mid:state.mid,treble:state.treble,presence:state.presence,master:state.master,ampBypass:moduleBypass.amp,namActive:namMode,ampModel:{'British 800':0,'American Clean':1,'Modern 5150':2}[selectedAmp]??0})}
+async function toggleAmpSource(){if(!namModelLoaded||!namModelJson){setText($('modelStatus'),'NO NAM MODEL • choose a .NAM file first');return}const next=!namMode;namMode=next;namSourceActive=next;SPVFUI(28,next?1:0);SAMFUI(103,-1,byte64(next));if(next&&moduleBypass.amp){moduleBypass.amp=false;SAMFUI(102,-1,byte64(false))}SOLARCTRL({namActive:next,ampBypass:moduleBypass.amp});refreshAllBypass();refreshNamBypass();setText($('modelStatus'),next?'NAM ACTIVE • native DSP':'AMP ACTIVE • native legacy amp')}
+function refreshAmpTone(){SPVFUI(0,Math.max(0,Math.min(1,state.gain/100)));SPVFUI(2,state.bass/100);SPVFUI(3,state.mid/100);SPVFUI(4,state.treble/100);SPVFUI(13,state.presence/100);SPVFUI(26,state.master/100);SPVFUI(27,moduleBypass.amp?1:0);SPVFUI(28,namMode?1:0);SOLARCTRL({gain:state.gain,bass:state.bass,mid:state.mid,treble:state.treble,presence:state.presence,master:state.master,ampBypass:moduleBypass.amp,namActive:namMode,ampModel:{'British 800':0,'American Clean':1,'Modern 5150':2}[selectedAmp]??0})}
 function refreshEq(){SPVFUI(17,state.eqLow/100);SPVFUI(18,state.eqMid/100);SPVFUI(19,state.eqHigh/100);SPVFUI(7,moduleBypass.eq?0:1);SAMFUI(110,2,byte64(!moduleBypass.eq));SOLARCTRL({eqLow:state.eqLow,eqMid:state.eqMid,eqHigh:state.eqHigh,eqActive:!moduleBypass.eq});eqGraph.low=(state.eqLow-50)*.24;eqGraph.mid=(state.eqMid-50)*.24;eqGraph.high=(state.eqHigh-50)*.24;updateEqGraph()}
 function refreshCab(){SPVFUI(8,moduleBypass.cab?0:1);SAMFUI(110,3,byte64(!moduleBypass.cab));SOLARCTRL({cabActive:!moduleBypass.cab})}
 function refreshStatusIndicators(){
@@ -146,7 +146,7 @@ function refreshStatusIndicators(){
  });
 }
 function refreshAllBypass(){refreshDrive();refreshAmpTone();refreshEq();refreshCab();refreshFx();refreshStatusIndicators()}
-function toggleModule(name){if(!(name in moduleBypass))return;moduleBypass[name]=!moduleBypass[name];const icon=document.querySelector('.module-bypass[data-module="'+name+'"]');if(icon){icon.textContent=moduleBypass[name]?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass[name]);icon.setAttribute('aria-pressed',String(!moduleBypass[name]))}if(name==='amp'){SAMFUI(102,-1,byte64(moduleBypass.amp));SAMFUI(110,1,byte64(!moduleBypass.amp));}if(name==='eq')SPVFUI(7,moduleBypass.eq?0:1);if(name==='cab')SPVFUI(8,moduleBypass.cab?0:1);if(name==='od')SPVFUI(22,moduleBypass.od?0:1);if(name==='fx')SPVFUI(23,moduleBypass.fx?0:1);SAMFUI(110,0,byte64(!moduleBypass.od));SAMFUI(110,2,byte64(!moduleBypass.eq));SAMFUI(110,3,byte64(!moduleBypass.cab));SAMFUI(110,4,byte64(!moduleBypass.fx));SOLARCTRL({odActive:!moduleBypass.od,eqActive:!moduleBypass.eq,cabActive:!moduleBypass.cab,fxActive:!moduleBypass.fx,ampBypass:moduleBypass.amp,namActive:namMode});refreshAllBypass();refreshNamBypass();refreshStatusIndicators()}
+function toggleModule(name){if(!(name in moduleBypass))return;moduleBypass[name]=!moduleBypass[name];const icon=document.querySelector('.module-bypass[data-module="'+name+'"]');if(icon){icon.textContent=moduleBypass[name]?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass[name]);icon.setAttribute('aria-pressed',String(!moduleBypass[name]))}if(name==='amp'){SPVFUI(27,moduleBypass.amp?1:0);SAMFUI(102,-1,byte64(moduleBypass.amp));SAMFUI(110,1,byte64(!moduleBypass.amp));}if(name==='eq')SPVFUI(7,moduleBypass.eq?0:1);if(name==='cab')SPVFUI(8,moduleBypass.cab?0:1);if(name==='od')SPVFUI(22,moduleBypass.od?0:1);if(name==='fx')SPVFUI(23,moduleBypass.fx?0:1);SAMFUI(110,0,byte64(!moduleBypass.od));SAMFUI(110,2,byte64(!moduleBypass.eq));SAMFUI(110,3,byte64(!moduleBypass.cab));SAMFUI(110,4,byte64(!moduleBypass.fx));SOLARCTRL({odActive:!moduleBypass.od,eqActive:!moduleBypass.eq,cabActive:!moduleBypass.cab,fxActive:!moduleBypass.fx,ampBypass:moduleBypass.amp,namActive:namMode});refreshAllBypass();refreshNamBypass();refreshStatusIndicators()}
 function apply(k,v){const m={gain:[0,v/100],bass:[2,v/100],mid:[3,v/100],treble:[4,v/100],presence:[13,v/100],master:[26,v/100],drive:[14,v/100],tone:[15,v/100],level:[16,v/100],eqLow:[17,v/100],eqMid:[18,v/100],eqHigh:[19,v/100],delay:[20,v/100],reverb:[21,v/100]};if(m[k])SPVFUI(m[k][0],m[k][1]);const keyMap={gain:'gain',bass:'bass',mid:'mid',treble:'treble',presence:'presence',master:'master',drive:'odDrive',tone:'odTone',level:'odLevel',eqLow:'eqLow',eqMid:'eqMid',eqHigh:'eqHigh',delay:'fxDelay',reverb:'fxReverb'};if(keyMap[k])SOLARCTRL({[keyMap[k]]:v})}
 function makeKnobs(id,names){
  const root=$(id);if(!root)return;root.innerHTML='';
@@ -186,6 +186,8 @@ function updatePreset(){
  moduleBypass.eq=false;
  moduleBypass.cab=false;
  moduleBypass.fx=false;
+ namMode=false;namSourceActive=false;
+ SPVFUI(27,0);SPVFUI(28,0);SAMFUI(102,-1,byte64(false));SAMFUI(103,-1,byte64(false));
  setAmp?.(p.amp);setOd?.(p.od);setEq?.(p.amp==='American Clean'?'Default':p.amp==='Modern 5150'?'V-Curve':'Mid Focus');
  setCab?.(p.cab);setFx?.(p.fx);setFxMode?.(p.fxMode||'DELAY');
  refreshAllBypass();refreshNamBypass();refreshStatusIndicators();
@@ -193,7 +195,7 @@ function updatePreset(){
 function cyclePreset(dir){presetIndex=(presetIndex+dir+presets.length)%presets.length;updatePreset()}
 function savePreset(){
  const name=prompt('Nama preset:',String($('presetName')?.textContent||'My Preset').trim())?.trim();if(!name)return;
- const p={name,amp:selectedAmp,od:selectedOd,eq:selectedEq,cab:selectedCab||$('cabModel')?.textContent||irPackV1[0],fx:$('fxModel')?.textContent||'Hall Reverb',fxMode:selectedFxMode,state:{...state},bypass:{...moduleBypass},irName:irName||selectedCab};
+ const p={name,amp:selectedAmp,od:selectedOd,eq:selectedEq,cab:selectedCab||$('cabModel')?.textContent||irPackV1[0],fx:$('fxModel')?.textContent||'Hall Reverb',fxMode:selectedFxMode,state:{...state},bypass:{...moduleBypass},namMode,irName:irName||selectedCab};
  savedPresets=savedPresets.filter(x=>x.name!==name);savedPresets.push(p);localStorage.setItem('solarSavedPresets',JSON.stringify(savedPresets));alert('Preset tersimpan: '+name);
 }
 function loadSavedPreset(p){
@@ -210,9 +212,12 @@ function loadSavedPreset(p){
  // Restore bypass state before pushing the final DSP snapshot so native DSP,
  // host parameters, icons and the WebView cannot disagree after a preset load.
  Object.entries(moduleBypass).forEach(([k])=>moduleBypass[k]=Boolean(p.bypass?.[k]));
+ namMode=Boolean(p.namMode)&&Boolean(namModelLoaded&&namReady);
+ namSourceActive=namMode;
  document.querySelectorAll('.module-bypass[data-module]').forEach(icon=>{const n=icon.dataset.module;icon.textContent=moduleBypass[n]?'🖕':'👍';icon.classList.toggle('bypassed',moduleBypass[n]);icon.setAttribute('aria-pressed',String(!moduleBypass[n]))});
  Object.entries(state).forEach(([k,v])=>knobSetters[k]?.(v));
  applyAmpModel(selectedAmp);applyOdModel(selectedOd);applyEqModel(selectedEq);applyCabModel(selectedCab);applyFxModel(selectedFx);applyFxMode(selectedFxMode);
+ SPVFUI(27,moduleBypass.amp?1:0);SPVFUI(28,namMode?1:0);SAMFUI(102,-1,byte64(moduleBypass.amp));SAMFUI(103,-1,byte64(namMode));
  refreshAllBypass();refreshNamBypass();refreshStatusIndicators();
 }
 function manageSavedPresets(){
@@ -364,6 +369,7 @@ function wireUI(){$('start')?.addEventListener('click',()=>{if(!running)start();
   namModelJson=btoa(s);
   namModelLoaded=false;namPending=true;namReady=false;namMode=false;namSourceActive=false;namSourceRequested=true;
   SAMFUI(100,-1,namModelJson);
+  SPVFUI(28,0);
   SAMFUI(103,-1,byte64(false));
   SOLARCTRL({namActive:false,ampBypass:moduleBypass.amp});
   refreshNamBypass();refreshStatusIndicators();
@@ -382,7 +388,7 @@ window.SOLARSetStatus=t=>{
  }else if(/^NAM MODEL - loaded into native DSP/i.test(msg)){
    namModelLoaded=true;namReady=true;namPending=false;namSourceRequested=true;
    namMode=true;namSourceActive=true;moduleBypass.amp=false;
-   SAMFUI(103,-1,byte64(true));SAMFUI(102,-1,byte64(false));
+   SPVFUI(27,0);SPVFUI(28,1);SAMFUI(103,-1,byte64(true));SAMFUI(102,-1,byte64(false));
    SOLARCTRL({namActive:true,ampBypass:false});
    refreshAllBypass();refreshNamBypass();refreshStatusIndicators();
  }else if(/^NAM MODEL ERROR/i.test(msg)){
