@@ -2,9 +2,22 @@
 // inject the SPVFUI/SAMFUI helper functions from the example web script, so the
 // SOLAR AMP VST3 keeps its own explicit bridge here.
 function byte64(value){ const n=Math.max(0,Math.min(255,Number(value)||0)); return btoa(String.fromCharCode(n)); }
+const _solarQueue=[];
+let _solarBridgeTimer=null;
 function _solarSend(msg){
- if(typeof IPlugSendMsg!=='function') throw new Error('iPlugSendMsg bridge is unavailable');
- IPlugSendMsg(msg);
+ if(typeof IPlugSendMsg==='function'){
+  try{IPlugSendMsg(msg);return true}catch(error){console.warn('SOLAR AMP bridge send failed',error)}
+ }
+ _solarQueue.push(msg);
+ if(!_solarBridgeTimer){
+  _solarBridgeTimer=setInterval(()=>{
+   if(typeof IPlugSendMsg!=='function')return;
+   const q=_solarQueue.splice(0);
+   for(const item of q){try{IPlugSendMsg(item)}catch(error){_solarQueue.unshift(item);break}}
+   if(!_solarQueue.length){clearInterval(_solarBridgeTimer);_solarBridgeTimer=null}
+  },50);
+ }
+ return false;
 }
 function SPVFD(paramIdx,val){ if(window.SOLARParamFromHost) window.SOLARParamFromHost(paramIdx,val); }
 function SCVFD(ctrlTag,val){ if(window.SOLARControlFromHost) window.SOLARControlFromHost(ctrlTag,val); }
@@ -403,9 +416,27 @@ window.SOLARSetStatus=t=>{
    refreshStatusIndicators();
  }
 };
-wireUI();updatePreset();
+// Render the controls before any bridge/host message can abort UI boot.
+// This guarantees the native VST3 always exposes its knobs even if WebView2
+// finishes installing IPlugSendMsg a few milliseconds after document creation.
 makeKnobs('amp',['GAIN','BASS','MID','TREBLE','PRESENCE','MASTER']);
 makeKnobs('od',['DRIVE','TONE','LEVEL']);
 makeKnobs('eq',['LOW','MID','HIGH']);
 makeKnobs('fx',['DELAY','REVERB']);
+
+try{
+ wireUI();
+ updatePreset();
+}catch(error){
+ const message=String(error?.stack||error?.message||error||'Unknown WebView error');
+ console.error('SOLAR AMP UI boot error',error);
+ setText($('modelStatus'),'UI BOOT ERROR • '+message);
+ const boot=$('engine');if(boot)boot.textContent='UI ERROR';
+ refreshStatusIndicators();
+}
+window.addEventListener('error',event=>{
+ const message=String(event?.error?.message||event?.message||'WebView error');
+ console.error('SOLAR AMP runtime error',event.error||event);
+ const status=$('modelStatus');if(status&&!/^NAM MODEL/.test(status.textContent||''))status.textContent='UI ERROR • '+message;
+});
 
