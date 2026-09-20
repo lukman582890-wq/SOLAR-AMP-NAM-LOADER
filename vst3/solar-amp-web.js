@@ -355,7 +355,10 @@ function renderIRLibrary(){
   box.appendChild(b);
  });
 }
-async function loadIRFile(file){if(!file)return;try{irBuffer=await file.arrayBuffer();irName=file.name;selectedCab=file.name;irFiles.set(file.name,{buffer:irBuffer});renderIRLibrary();sendIRBytes(irBuffer);setText($('cabModel'),formatIRName(file.name));setText($('irStatus'),'NATIVE DSP • loading '+file.name);refreshCab()}catch(e){setText($('irStatus'),'IR LOAD ERROR • '+(e?.message||e))}}
+async function loadIRFile(file){
+ if(!file)return;
+ if(!/\\.wav$/i.test(String(file.name||''))){setText($('irStatus'),'IR LOAD ERROR • Native VST3 supports WAV IR only');return}
+ try{irBuffer=await file.arrayBuffer();irName=file.name;selectedCab=file.name;irFiles.set(file.name,{buffer:irBuffer});renderIRLibrary();sendIRBytes(irBuffer);setText($('cabModel'),formatIRName(file.name));setText($('irStatus'),'NATIVE DSP • loading '+file.name);refreshCab()}catch(e){setText($('irStatus'),'IR LOAD ERROR • '+(e?.message||e))}}
 function saveIRLocal(name,buffer){try{const data=buffer.getChannelData(0);const arr=new Float32Array(data);localStorage.setItem('solarLastIRName',name);localStorage.setItem('solarLastIR',btoa(String.fromCharCode(...new Uint8Array(arr.buffer))));}catch{}}
 
 function applyFxModel(name){selectedFx=name;const p={'Hall Reverb':[42,30],'Plate Reverb':[18,38],'Room Reverb':[10,20],'Studio Hall':[32,34]}[name]||[42,30];state.delay=p[0];state.reverb=p[1];refreshFx()}
