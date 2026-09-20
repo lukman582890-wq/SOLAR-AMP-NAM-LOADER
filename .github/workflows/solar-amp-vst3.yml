@@ -40,6 +40,11 @@ jobs:
           if (-not (Test-Path "$wil/include/wil/com.h")) {
             git clone --depth 1 --branch v1.0.240803.1 https://github.com/microsoft/wil.git $wil
           }
+          $json = "$dep/Extras/nlohmann"
+          if (-not (Test-Path "$json/json.hpp")) {
+            New-Item -ItemType Directory -Force $json | Out-Null
+            Invoke-WebRequest 'https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp' -OutFile "$json/json.hpp"
+          }
           $wv = "$dep/Extras/WebView2"
           if (-not (Test-Path "$wv/build/native/include/WebView2.h")) {
             New-Item -ItemType Directory -Force $wv | Out-Null
