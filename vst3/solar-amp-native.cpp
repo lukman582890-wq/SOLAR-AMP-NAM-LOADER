@@ -426,16 +426,24 @@ void NeuralAmpModeler::OnIdle()
 
 bool NeuralAmpModeler::SerializeState(IByteChunk& chunk) const
 {
+  // The DSP object and its path are committed together. Snapshot the paths
+  // under the same mutex used by the staging/commit path so host state saves
+  // cannot observe a half-updated model/IR identity.
+  WDL_String namPath;
+  WDL_String irPath;
+  {
+    std::lock_guard<std::mutex> lock(mDSPStageMutex);
+    namPath = mNAMPath;
+    irPath = mIRPath;
+  }
+
   // If this isn't here when unserializing, then we know we're dealing with something before v0.8.0.
   WDL_String header("###NeuralAmpModeler###"); // Don't change this!
   chunk.PutStr(header.Get());
-  // Plugin version, so we can load legacy serialized states in the future!
   WDL_String version(PLUG_VERSION_STR);
   chunk.PutStr(version.Get());
-  // Model directory (don't serialize the model itself; we'll just load it again
-  // when we unserialize)
-  chunk.PutStr(mNAMPath.Get());
-  chunk.PutStr(mIRPath.Get());
+  chunk.PutStr(namPath.Get());
+  chunk.PutStr(irPath.Get());
   return SerializeParams(chunk);
 }
 
@@ -790,6 +798,7 @@ void NeuralAmpModeler::_ApplyDSPStaging()
   {
     mModel = nullptr;
     mNAMPath.Set("");
+    mStagedNAMPath.Set("");
     mModelCleared = true;
     _UpdateLatency();
     _SetInputGain();
@@ -800,11 +809,14 @@ void NeuralAmpModeler::_ApplyDSPStaging()
   {
     mIR = nullptr;
     mIRPath.Set("");
+    mStagedIRPath.Set("");
   }
 
   if (mStagedModel != nullptr)
   {
     mModel = std::move(mStagedModel);
+    mNAMPath = mStagedNAMPath;
+    mStagedNAMPath.Set("");
     mNewModelLoadedInDSP = true;
     _UpdateLatency();
     _SetInputGain();
@@ -814,6 +826,8 @@ void NeuralAmpModeler::_ApplyDSPStaging()
   if (mStagedIR != nullptr)
   {
     mIR = std::move(mStagedIR);
+    mIRPath = mStagedIRPath;
+    mStagedIRPath.Set("");
     mNewIRLoadedInDSP = true;
   }
 }
@@ -930,7 +944,11 @@ void NeuralAmpModeler::_ApplySlimParamToLoadedNAMs()
 
 std::string NeuralAmpModeler::_StageModel(const WDL_String& modelPath)
 {
-  WDL_String previousNAMPath = mNAMPath;
+  WDL_String previousNAMPath;
+  {
+    std::lock_guard<std::mutex> lock(mDSPStageMutex);
+    previousNAMPath = mNAMPath;
+  }
   try
   {
     auto dspPath = std::filesystem::u8path(modelPath.Get());
@@ -956,7 +974,7 @@ std::string NeuralAmpModeler::_StageModel(const WDL_String& modelPath)
     {
       std::lock_guard<std::mutex> lock(mDSPStageMutex);
       mStagedModel = std::move(temp);
-      mNAMPath = modelPath;
+      mStagedNAMPath = modelPath;
     }
   }
   catch (std::runtime_error& e)
@@ -966,6 +984,7 @@ std::string NeuralAmpModeler::_StageModel(const WDL_String& modelPath)
     {
       std::lock_guard<std::mutex> lock(mDSPStageMutex);
       mStagedModel = nullptr;
+      mStagedNAMPath.Set("");
       mNAMPath = previousNAMPath;
     }
     std::cerr << "Failed to read DSP module" << std::endl;
@@ -979,7 +998,11 @@ dsp::wav::LoadReturnCode NeuralAmpModeler::_StageIR(const WDL_String& irPath)
 {
   // FIXME it'd be better for the path to be "staged" as well. Just in case the
   // path and the model got caught on opposite sides of the fence...
-  WDL_String previousIRPath = mIRPath;
+  WDL_String previousIRPath;
+  {
+    std::lock_guard<std::mutex> lock(mDSPStageMutex);
+    previousIRPath = mIRPath;
+  }
   const double sampleRate = GetSampleRate();
   dsp::wav::LoadReturnCode wavState = dsp::wav::LoadReturnCode::ERROR_OTHER;
   try
@@ -990,6 +1013,7 @@ dsp::wav::LoadReturnCode NeuralAmpModeler::_StageIR(const WDL_String& irPath)
     {
       std::lock_guard<std::mutex> lock(mDSPStageMutex);
       mStagedIR = std::move(stagedIR);
+      mStagedIRPath = irPath;
     }
   }
   catch (std::runtime_error& e)
@@ -1001,13 +1025,14 @@ dsp::wav::LoadReturnCode NeuralAmpModeler::_StageIR(const WDL_String& irPath)
 
   if (wavState == dsp::wav::LoadReturnCode::SUCCESS)
   {
-    mIRPath = irPath;
+    // The live path is committed with the staged IR in _ApplyDSPStaging().
   }
   else
   {
     {
       std::lock_guard<std::mutex> lock(mDSPStageMutex);
       mStagedIR = nullptr;
+      mStagedIRPath.Set("");
     }
     mIRPath = previousIRPath;
     SendControlMsgFromDelegate(kCtrlTagIRFileBrowser, kMsgTagLoadFailed, 0, nullptr);
