@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <iostream>
 #include <utility>
+#include <mutex>
 #ifdef OS_WIN
 #include <windows.h>
 #endif
@@ -399,8 +400,28 @@ void NeuralAmpModeler::OnIdle()
 {
   mInputSender.TransmitData(*this);
   mOutputSender.TransmitData(*this);
-  if (mNewModelLoadedInDSP) mNewModelLoadedInDSP = false;
-  if (mModelCleared) mModelCleared = false;
+
+  // Report successful DSP commits only after the audio thread has actually
+  // adopted the staged object. The WebView must never claim "loaded" merely
+  // because a background/UI message was accepted.
+  if (mNewModelLoadedInDSP.exchange(false))
+  {
+    const std::string js =
+      "if(window.SOLARSetStatus)window.SOLARSetStatus('NAM MODEL - loaded into native DSP');";
+    EvaluateJavaScript(js.c_str());
+  }
+  if (mNewIRLoadedInDSP.exchange(false))
+  {
+    const std::string js =
+      "if(window.SOLARSetStatus)window.SOLARSetStatus('IR - loaded into native DSP');";
+    EvaluateJavaScript(js.c_str());
+  }
+  if (mModelCleared.exchange(false))
+  {
+    const std::string js =
+      "if(window.SOLARSetStatus)window.SOLARSetStatus('NAM MODEL - cleared');";
+    EvaluateJavaScript(js.c_str());
+  }
 }
 
 bool NeuralAmpModeler::SerializeState(IByteChunk& chunk) const
@@ -590,7 +611,9 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
         f.close();
         WDL_String modelPath(path.string().c_str());
         const std::string err = _StageModel(modelPath);
-        setStatus(err.empty() ? "NAM MODEL - loaded into native DSP" : std::string("NAM MODEL ERROR - ") + err);
+        setStatus(err.empty()
+          ? "NAM MODEL - accepted; waiting for DSP commit"
+          : std::string("NAM MODEL ERROR - ") + err);
       }
       catch (const std::exception& e)
       {
@@ -613,7 +636,9 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
         f.close();
         WDL_String irPath(path.string().c_str());
         const auto rc = _StageIR(irPath);
-        setStatus(rc == dsp::wav::LoadReturnCode::SUCCESS ? "IR - loaded into native DSP" : "IR LOAD ERROR");
+        setStatus(rc == dsp::wav::LoadReturnCode::SUCCESS
+          ? "IR - accepted; waiting for DSP commit"
+          : "IR LOAD ERROR");
       }
       catch (const std::exception& e)
       {
@@ -773,20 +798,23 @@ void NeuralAmpModeler::_ApplyDSPStaging()
     mIRPath.Set("");
     mShouldRemoveIR = false;
   }
-  // Move things from staged to live
-  if (mStagedModel != nullptr)
+  // Move staged objects to the audio-thread-owned live slots. The mutex is
+  // held only for the pointer swap; model construction happens off this path.
   {
-    mModel = std::move(mStagedModel);
-    mStagedModel = nullptr;
-    mNewModelLoadedInDSP = true;
-    _UpdateLatency();
-    _SetInputGain();
-    _SetOutputGain();
-  }
-  if (mStagedIR != nullptr)
-  {
-    mIR = std::move(mStagedIR);
-    mStagedIR = nullptr;
+    std::lock_guard<std::mutex> lock(mDSPStageMutex);
+    if (mStagedModel != nullptr)
+    {
+      mModel = std::move(mStagedModel);
+      mNewModelLoadedInDSP = true;
+      _UpdateLatency();
+      _SetInputGain();
+      _SetOutputGain();
+    }
+    if (mStagedIR != nullptr)
+    {
+      mIR = std::move(mStagedIR);
+      mNewIRLoadedInDSP = true;
+    }
   }
 }
 
@@ -929,8 +957,11 @@ std::string NeuralAmpModeler::_StageModel(const WDL_String& modelPath)
     {
       slimmable->SetSlimmableSize(GetParam(kSlim)->Value());
     }
-    mStagedModel = std::move(temp);
-    mNAMPath = modelPath;
+    {
+      std::lock_guard<std::mutex> lock(mDSPStageMutex);
+      mStagedModel = std::move(temp);
+      mNAMPath = modelPath;
+    }
   }
   catch (std::runtime_error& e)
   {
@@ -957,8 +988,13 @@ dsp::wav::LoadReturnCode NeuralAmpModeler::_StageIR(const WDL_String& irPath)
   dsp::wav::LoadReturnCode wavState = dsp::wav::LoadReturnCode::ERROR_OTHER;
   try
   {
-    mStagedIR = std::make_unique<dsp::ImpulseResponse>(irPath.Get(), sampleRate);
-    wavState = mStagedIR->GetWavState();
+    auto stagedIR = std::make_unique<dsp::ImpulseResponse>(irPath.Get(), sampleRate);
+    wavState = stagedIR->GetWavState();
+    if (wavState == dsp::wav::LoadReturnCode::SUCCESS)
+    {
+      std::lock_guard<std::mutex> lock(mDSPStageMutex);
+      mStagedIR = std::move(stagedIR);
+    }
   }
   catch (std::runtime_error& e)
   {
@@ -973,8 +1009,8 @@ dsp::wav::LoadReturnCode NeuralAmpModeler::_StageIR(const WDL_String& irPath)
   }
   else
   {
-    if (mStagedIR != nullptr)
     {
+      std::lock_guard<std::mutex> lock(mDSPStageMutex);
       mStagedIR = nullptr;
     }
     mIRPath = previousIRPath;
