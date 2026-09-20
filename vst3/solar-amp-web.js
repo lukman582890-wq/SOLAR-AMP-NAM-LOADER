@@ -276,10 +276,37 @@ async function applyCabModel(name){
  }catch(e){setText($('irStatus'),'CAB IR ERROR • '+(e?.message||e))}
 }
 function renderIRLibrary(){
- const box=$('irLibrary');if(!box)return;box.innerHTML='';
+ const box=$('irLibrary');
+ if(!box)return;
+ box.innerHTML='';
  irFiles.forEach((v,name)=>{
-  const b=document.createElement('button');b.type='button';b.className='ir-item';b.textContent=name;b.title=name;
-  b.addEventListener('click',async()=>{\n   try{\n    irBuffer=v.buffer;irName=name;selectedCab=name;\n    setText($('cabModel'),formatIRName(name));\n    setText($('irStatus'),'CAB • loading '+formatIRName(name)+'…');\n    let u8;\n    if(v.buffer instanceof ArrayBuffer) u8=new Uint8Array(v.buffer);\n    else if(ArrayBuffer.isView(v.buffer)) u8=new Uint8Array(v.buffer.buffer,v.buffer.byteOffset,v.buffer.byteLength);\n    else throw new Error('IR buffer unavailable');\n    let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode(...u8.subarray(i,i+0x8000));\n    moduleBypass.cab=false;\n    SAMFUI(101,-1,btoa(s));\n    SAMFUI(110,3,byte64(true));\n    SOLARCTRL({cabActive:true});\n    refreshCab();\n   }catch(e){setText($('irStatus'),'IR LOAD ERROR • '+(e?.message||e))}\n  });
+  const b=document.createElement('button');
+  b.type='button';
+  b.className='ir-item';
+  b.textContent=name;
+  b.title=name;
+  b.addEventListener('click',async()=>{
+   try{
+    irBuffer=v.buffer;
+    irName=name;
+    selectedCab=name;
+    setText($('cabModel'),formatIRName(name));
+    setText($('irStatus'),'CAB • loading '+formatIRName(name)+'…');
+    let u8;
+    if(v.buffer instanceof ArrayBuffer) u8=new Uint8Array(v.buffer);
+    else if(ArrayBuffer.isView(v.buffer)) u8=new Uint8Array(v.buffer.buffer,v.buffer.byteOffset,v.buffer.byteLength);
+    else throw new Error('IR buffer unavailable');
+    let s='';
+    for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode(...u8.subarray(i,i+0x8000));
+    moduleBypass.cab=false;
+    SAMFUI(101,-1,btoa(s));
+    SAMFUI(110,3,byte64(true));
+    SOLARCTRL({cabActive:true});
+    refreshCab();
+   }catch(e){
+    setText($('irStatus'),'IR LOAD ERROR • '+(e?.message||e));
+   }
+  });
   box.appendChild(b);
  });
 }
