@@ -79,7 +79,7 @@ async function initNamEngine(){
  })();
  return namEnginePromise;
 }
-async function loadNamModel(json){if(!json)throw Error('NAM model is empty');namModelJson=String(json);namPending=true;setText($('modelStatus'),'NAM MODEL • sending to native DSP…');try{SAMFUI(100,-1,namModelJson);namModelLoaded=true;namReady=true;namPending=false;namMode=true;namSourceActive=true;moduleBypass.amp=false;SAMFUI(103,-1,byte64(true));SAMFUI(102,-1,byte64(false));refreshAllBypass();refreshNamBypass();setText($('modelStatus'),'NAM ACTIVE • native DSP');return true}catch(e){namModelLoaded=false;namReady=false;setText($('modelStatus'),'NAM MODEL ERROR • '+(e?.message||e));refreshStatusIndicators();throw e}}
+async function loadNamModel(json){if(!json)throw Error('NAM model is empty');namModelJson=String(json);namPending=true;namModelLoaded=false;namReady=false;namMode=false;namSourceActive=false;setText($('modelStatus'),'NAM MODEL • sending to native DSP…');try{SAMFUI(100,-1,namModelJson);SAMFUI(103,-1,byte64(false));SOLARCTRL({namActive:false,ampBypass:moduleBypass.amp});refreshAllBypass();refreshNamBypass();return true}catch(e){namModelLoaded=false;namReady=false;setText($('modelStatus'),'NAM MODEL ERROR • '+(e?.message||e));refreshStatusIndicators();throw e}}
 
 function refreshFx(){const modes={DELAY:0,REVERB:1,CHORUS:2,PHASER:3,TREMOLO:4};const mode=modes[selectedFxMode]??0;SPVFUI(20,state.delay/100);SPVFUI(21,state.reverb/100);SPVFUI(23,moduleBypass.fx?0:1);SPVFUI(24,mode/4);SAMFUI(110,4,byte64(!moduleBypass.fx));SAMFUI(111,-1,byte64(mode));SOLARCTRL({fxDelay:state.delay,fxReverb:state.reverb,fxActive:!moduleBypass.fx,fxMode:mode})}
 function refreshDrive(){SPVFUI(14,state.drive/100);SPVFUI(15,state.tone/100);SPVFUI(16,state.level/100);SPVFUI(22,moduleBypass.od?0:1);SAMFUI(110,0,byte64(!moduleBypass.od));SOLARCTRL({odDrive:state.drive,odTone:state.tone,odLevel:state.level,odActive:!moduleBypass.od})}
@@ -174,8 +174,8 @@ function impulse(sec,decay){
  for(let c=0;c<2;c++){const a=b.getChannelData(c);for(let i=0;i<a.length;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/a.length,decay)}
  return b;
 }
-async function start(){if(running)return;running=true;namReady=true;$('start')?.classList.add('on');if($('start'))$('start').textContent='👍';$('stopAudio')?.removeAttribute('hidden');setText($('engine'),'NATIVE DSP');setText($('rate'),'HOST');setText($('latency'),'NATIVE');refreshAllBypass();refreshStatusIndicators();setText($('modelStatus'),namModelLoaded?'NATIVE NAM • READY':'NATIVE AMP • READY')}
-function stop(){running=false;namReady=false;namSourceActive=false;$('stopAudio')?.setAttribute('hidden','');$('start')?.classList.remove('on');if($('start'))$('start').textContent='🖕';setText($('engine'),'NATIVE DSP');setText($('rate'),'HOST');setText($('latency'),'NATIVE');refreshStatusIndicators()}
+async function start(){if(running)return;running=true;$('start')?.classList.add('on');if($('start'))$('start').textContent='👍';$('stopAudio')?.removeAttribute('hidden');setText($('engine'),'NATIVE DSP');setText($('rate'),'HOST');setText($('latency'),'NATIVE');refreshAllBypass();refreshStatusIndicators();setText($('modelStatus'),namModelLoaded?'NATIVE NAM • READY':'NATIVE AMP • READY')}
+function stop(){running=false;namSourceActive=Boolean(namModelLoaded&&namMode);$('stopAudio')?.setAttribute('hidden','');$('start')?.classList.remove('on');if($('start'))$('start').textContent='🖕';setText($('engine'),'NATIVE DSP');setText($('rate'),'HOST');setText($('latency'),'NATIVE');refreshStatusIndicators()}
 function tick(){}
 function updatePreset(){
  const p=presets[presetIndex];setText($('presetName'),String(presetIndex+1).padStart(2,'0')+'  '+p.name);
@@ -364,7 +364,10 @@ function wireUI(){$('start')?.addEventListener('click',()=>{if(!running)start();
 window.SOLARSetStatus=t=>{
  const msg=String(t??'');
  setText($('modelStatus'),msg);
- if(/^NAM MODEL - loaded into native DSP/i.test(msg)){
+ if(/^NAM MODEL - accepted; waiting for DSP commit/i.test(msg)){
+   namPending=true;namReady=false;namModelLoaded=false;namMode=false;namSourceActive=false;
+   refreshNamBypass();refreshStatusIndicators();
+ }else if(/^NAM MODEL - loaded into native DSP/i.test(msg)){
    namModelLoaded=true;namReady=true;namPending=false;namSourceRequested=true;
    namMode=true;namSourceActive=true;moduleBypass.amp=false;
    SAMFUI(103,-1,byte64(true));SAMFUI(102,-1,byte64(false));
