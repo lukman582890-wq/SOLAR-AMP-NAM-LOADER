@@ -781,40 +781,40 @@ void NeuralAmpModeler::_AllocateIOPointers(const size_t nChans)
 
 void NeuralAmpModeler::_ApplyDSPStaging()
 {
-  // Remove marked modules
-  if (mShouldRemoveModel)
+  // All staged ownership changes happen under one short mutex-protected
+  // critical section. Model/IR construction is performed before this function,
+  // so the audio thread only swaps ownership and updates lightweight state.
+  std::lock_guard<std::mutex> lock(mDSPStageMutex);
+
+  if (mShouldRemoveModel.exchange(false))
   {
     mModel = nullptr;
     mNAMPath.Set("");
-    mShouldRemoveModel = false;
     mModelCleared = true;
     _UpdateLatency();
     _SetInputGain();
     _SetOutputGain();
   }
-  if (mShouldRemoveIR)
+
+  if (mShouldRemoveIR.exchange(false))
   {
     mIR = nullptr;
     mIRPath.Set("");
-    mShouldRemoveIR = false;
   }
-  // Move staged objects to the audio-thread-owned live slots. The mutex is
-  // held only for the pointer swap; model construction happens off this path.
+
+  if (mStagedModel != nullptr)
   {
-    std::lock_guard<std::mutex> lock(mDSPStageMutex);
-    if (mStagedModel != nullptr)
-    {
-      mModel = std::move(mStagedModel);
-      mNewModelLoadedInDSP = true;
-      _UpdateLatency();
-      _SetInputGain();
-      _SetOutputGain();
-    }
-    if (mStagedIR != nullptr)
-    {
-      mIR = std::move(mStagedIR);
-      mNewIRLoadedInDSP = true;
-    }
+    mModel = std::move(mStagedModel);
+    mNewModelLoadedInDSP = true;
+    _UpdateLatency();
+    _SetInputGain();
+    _SetOutputGain();
+  }
+
+  if (mStagedIR != nullptr)
+  {
+    mIR = std::move(mStagedIR);
+    mNewIRLoadedInDSP = true;
   }
 }
 
@@ -846,17 +846,13 @@ void NeuralAmpModeler::_FallbackDSP(iplug::sample** inputs, iplug::sample** outp
 
 void NeuralAmpModeler::_ResetModelAndIR(const double sampleRate, const int maxBlockSize)
 {
-  // Model
-  if (mStagedModel != nullptr)
-  {
-    mStagedModel->Reset(sampleRate, maxBlockSize);
-  }
-  else if (mModel != nullptr)
-  {
-    mModel->Reset(sampleRate, maxBlockSize);
-  }
+  std::lock_guard<std::mutex> lock(mDSPStageMutex);
 
-  // IR
+  if (mStagedModel != nullptr)
+    mStagedModel->Reset(sampleRate, maxBlockSize);
+  else if (mModel != nullptr)
+    mModel->Reset(sampleRate, maxBlockSize);
+
   if (mStagedIR != nullptr)
   {
     const double irSampleRate = mStagedIR->GetSampleRate();
@@ -967,11 +963,11 @@ std::string NeuralAmpModeler::_StageModel(const WDL_String& modelPath)
   {
     SendControlMsgFromDelegate(kCtrlTagModelFileBrowser, kMsgTagLoadFailed, 0, nullptr);
 
-    if (mStagedModel != nullptr)
     {
+      std::lock_guard<std::mutex> lock(mDSPStageMutex);
       mStagedModel = nullptr;
+      mNAMPath = previousNAMPath;
     }
-    mNAMPath = previousNAMPath;
     std::cerr << "Failed to read DSP module" << std::endl;
     std::cerr << e.what() << std::endl;
     return e.what();
