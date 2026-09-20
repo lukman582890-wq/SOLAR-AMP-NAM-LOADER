@@ -379,8 +379,13 @@ private:
 
   // Path to model's config.json or model.nam
   WDL_String mNAMPath;
+  // Paths belonging to staged objects. They are committed atomically with the
+  // corresponding DSP object so a rapid model/IR replacement cannot leave the
+  // serialized state pointing at a different object than the live DSP.
+  WDL_String mStagedNAMPath;
   // Path to IR (.wav file)
   WDL_String mIRPath;
+  WDL_String mStagedIRPath;
 
   WDL_String mHighLightColor{};
 
