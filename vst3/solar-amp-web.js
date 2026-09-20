@@ -179,8 +179,16 @@ function stop(){running=false;namSourceActive=Boolean(namModelLoaded&&namMode);$
 function tick(){}
 function updatePreset(){
  const p=presets[presetIndex];setText($('presetName'),String(presetIndex+1).padStart(2,'0')+'  '+p.name);
+ // Factory presets are complete snapshots: do not leak a previous preset's
+ // module bypass state into the next one.
+ moduleBypass.amp=false;
+ moduleBypass.od=p.od==='Off';
+ moduleBypass.eq=false;
+ moduleBypass.cab=false;
+ moduleBypass.fx=false;
  setAmp?.(p.amp);setOd?.(p.od);setEq?.(p.amp==='American Clean'?'Default':p.amp==='Modern 5150'?'V-Curve':'Mid Focus');
  setCab?.(p.cab);setFx?.(p.fx);setFxMode?.(p.fxMode||'DELAY');
+ refreshAllBypass();refreshNamBypass();refreshStatusIndicators();
 }
 function cyclePreset(dir){presetIndex=(presetIndex+dir+presets.length)%presets.length;updatePreset()}
 function savePreset(){
