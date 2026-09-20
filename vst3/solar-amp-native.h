@@ -359,11 +359,13 @@ private:
   // Manages switching what DSP is being used.
   std::unique_ptr<ResamplingNAM> mStagedModel;
   std::unique_ptr<dsp::ImpulseResponse> mStagedIR;
+  mutable std::mutex mDSPStageMutex;
   // Flags to take away the modules at a safe time.
   std::atomic<bool> mShouldRemoveModel = false;
   std::atomic<bool> mShouldRemoveIR = false;
 
   std::atomic<bool> mNewModelLoadedInDSP = false;
+  std::atomic<bool> mNewIRLoadedInDSP = false;
   std::atomic<bool> mModelCleared = false;
 
   // Tone stack modules
