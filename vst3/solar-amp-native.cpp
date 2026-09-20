@@ -70,6 +70,11 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
   GetParam(kAmpModel)->InitEnum("AMP Model", 0, {"British 800", "American Clean", "Modern 5150"});
   GetParam(kAmpMaster)->InitDouble("AMP Master", 100.0, 0.0, 100.0, 1.0, "%");
 
+  // Seed the native SOLAR AMP DSP state from the same parameter defaults used
+  // by the WebView. This also makes restored VST3 states deterministic.
+  for (int i = 0; i < kNumParams; ++i)
+    OnParamChange(i);
+
   mNoiseGateTrigger.AddListener(&mNoiseGateGain);
 
 
