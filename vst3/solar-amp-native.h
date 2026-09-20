@@ -361,6 +361,17 @@ private:
   // Manages switching what DSP is being used.
   std::unique_ptr<ResamplingNAM> mStagedModel;
   std::unique_ptr<dsp::ImpulseResponse> mStagedIR;
+
+  // Audio thread never owns or destroys the live DSP objects. It only reads
+  // these atomic raw pointers while mModel/mIR remain owned by the non-audio
+  // thread. Replacements are retired and destroyed from OnIdle after all
+  // in-flight audio blocks have left the critical section.
+  std::atomic<ResamplingNAM*> mModelAudioPtr{nullptr};
+  std::atomic<dsp::ImpulseResponse*> mIRAudioPtr{nullptr};
+  std::atomic<uint32_t> mAudioReaders{0};
+  std::vector<std::unique_ptr<ResamplingNAM>> mRetiredModels;
+  std::vector<std::unique_ptr<dsp::ImpulseResponse>> mRetiredIRs;
+
   mutable std::mutex mDSPStageMutex;
   // Flags to take away the modules at a safe time.
   std::atomic<bool> mShouldRemoveModel = false;
