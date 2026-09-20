@@ -5,6 +5,12 @@ $hdr=Join-Path $root 'NeuralAmpModeler\NeuralAmpModeler.h'
 $props=Join-Path $root 'NeuralAmpModeler\config\NeuralAmpModeler-win.props'
 $proj=Join-Path $root 'NeuralAmpModeler\projects\NeuralAmpModeler-vst3.vcxproj'
 $web=Join-Path $root 'NeuralAmpModeler\Resources\web'
+# Make the nlohmann include deterministic for MSVC.
+$jsonLocal=Join-Path $root 'NeuralAmpModeler\nlohmann'
+New-Item -ItemType Directory -Force $jsonLocal | Out-Null
+$jsonSource=Join-Path $root 'iPlug2\Dependencies\Extras\nlohmann\json.hpp'
+if(-not (Test-Path $jsonSource)){throw 'nlohmann/json.hpp dependency was not prepared.'}
+Copy-Item $jsonSource (Join-Path $jsonLocal 'json.hpp') -Force
 New-Item -ItemType Directory -Force $web | Out-Null
 Copy-Item 'vst3\solar-amp-native.cpp' $src -Force
 Copy-Item 'vst3\solar-amp-native.h' $hdr -Force
