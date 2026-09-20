@@ -1,5 +1,7 @@
 #pragma once
 
+#include <mutex>
+
 #include "IPlugConstants.h"
 #ifndef DEFAULT_BLOCK_SIZE
 #define DEFAULT_BLOCK_SIZE 1024
