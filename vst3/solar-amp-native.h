@@ -66,6 +66,8 @@ enum EParams
   kFXMode,
   kAmpModel,
   kAmpMaster,
+  kAmpBypass,
+  kNamSource,
   kNumParams
 };
 
