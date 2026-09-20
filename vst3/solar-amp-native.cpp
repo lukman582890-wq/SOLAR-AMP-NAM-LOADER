@@ -70,6 +70,9 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
   GetParam(kFXMode)->InitEnum("FX Mode", 0, {"DELAY", "REVERB", "CHORUS", "PHASER", "TREMOLO"});
   GetParam(kAmpModel)->InitEnum("AMP Model", 0, {"British 800", "American Clean", "Modern 5150"});
   GetParam(kAmpMaster)->InitDouble("AMP Master", 100.0, 0.0, 100.0, 1.0, "%");
+  // Appended state parameters: existing parameter indices remain unchanged.
+  GetParam(kAmpBypass)->InitBool("AMP Bypass", false);
+  GetParam(kNamSource)->InitBool("NAM Source", false);
 
   // Seed the native SOLAR AMP DSP state from the same parameter defaults used
   // by the WebView. This also makes restored VST3 states deterministic.
@@ -520,6 +523,14 @@ void NeuralAmpModeler::OnParamChange(int paramIdx)
 
     case kAmpMaster:
       mMasterPct.store(static_cast<float>(GetParam(paramIdx)->GetNormalized() * 100.0));
+      break;
+
+    case kAmpBypass:
+      mNativeAmpBypass.store(GetParam(paramIdx)->Bool());
+      break;
+
+    case kNamSource:
+      mNamActive.store(GetParam(paramIdx)->Bool());
       break;
 
     case kODDrive:
