@@ -102,8 +102,8 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
 
 NeuralAmpModeler::~NeuralAmpModeler()
 {
-  mModelAudioPtr.store(nullptr, std::memory_order_release);
-  mIRAudioPtr.store(nullptr, std::memory_order_release);
+  mModelAudioPtr.store(nullptr);
+  mIRAudioPtr.store(nullptr);
   _DeallocateIOPointers();
 }
 
@@ -118,14 +118,14 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   // Live NAM/IR ownership is managed by OnIdle. The audio thread only
   // observes atomic raw pointers and is counted so retired objects cannot be
   // destroyed while an audio block is still using them.
-  mAudioReaders.fetch_add(1, std::memory_order_acquire);
+  mAudioReaders.fetch_add(1);
   struct AudioReadGuard
   {
     std::atomic<uint32_t>& readers;
-    ~AudioReadGuard() { readers.fetch_sub(1, std::memory_order_release); }
+    ~AudioReadGuard() { readers.fetch_sub(1); }
   } audioReadGuard{mAudioReaders};
-  ResamplingNAM* audioModel = mModelAudioPtr.load(std::memory_order_acquire);
-  dsp::ImpulseResponse* audioIR = mIRAudioPtr.load(std::memory_order_acquire);
+  ResamplingNAM* audioModel = mModelAudioPtr.load();
+  dsp::ImpulseResponse* audioIR = mIRAudioPtr.load();
 
   // Disable floating point denormals
   std::fenv_t fe_state;
@@ -841,7 +841,7 @@ void NeuralAmpModeler::_ApplyDSPStaging()
     mStagedNAMPath.Set("");
 
     // Publish only after ownership is established.
-    mModelAudioPtr.store(mModel.get(), std::memory_order_release);
+    mModelAudioPtr.store(mModel.get());
     mNewModelLoadedInDSP = true;
     _UpdateLatency();
     _SetInputGain();
@@ -856,13 +856,13 @@ void NeuralAmpModeler::_ApplyDSPStaging()
     mIR = std::move(mStagedIR);
     mIRPath = mStagedIRPath;
     mStagedIRPath.Set("");
-    mIRAudioPtr.store(mIR.get(), std::memory_order_release);
+    mIRAudioPtr.store(mIR.get());
     mNewIRLoadedInDSP = true;
   }
 
   // Old DSP objects are safe to destroy only after the pointer swap and after
   // every audio block that could have acquired the old pointer has finished.
-  if (mAudioReaders.load(std::memory_order_acquire) == 0)
+  if (mAudioReaders.load() == 0)
   {
     mRetiredModels.clear();
     mRetiredIRs.clear();
