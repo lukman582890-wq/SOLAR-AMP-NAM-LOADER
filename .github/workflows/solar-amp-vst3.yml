@@ -3,6 +3,14 @@ name: Build SOLAR AMP VST3
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'vst3/**'
+      - 'app.js'
+      - 'index.html'
+      - 'styles.css'
+      - 'ir/**'
+      - '.github/workflows/solar-amp-vst3.yml'
   push:
     paths:
       - 'vst3/**'
