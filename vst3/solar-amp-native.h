@@ -1,7 +1,14 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <mutex>
+#include <stdexcept>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "IPlugConstants.h"
 #ifndef DEFAULT_BLOCK_SIZE
