@@ -121,6 +121,11 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
+      - name: Record source revision
+        shell: pwsh
+        run: |
+          Write-Host "SOLAR AMP source revision: $(git rev-parse HEAD)"
+
       - name: Build VST3
         shell: pwsh
         run: |
@@ -169,6 +174,7 @@ jobs:
           if (-not (Test-Path (Join-Path $webRoot 'index.html'))) { throw 'WebView index.html missing.' }
           if (-not (Test-Path (Join-Path $webRoot 'solar-amp-web.js'))) { throw 'SOLAR AMP WebView JS missing.' }
           if (Test-Path (Join-Path $webRoot 'app.js')) { throw 'PWA app.js must not be shipped inside native VST3.' }
+          if (Test-Path (Join-Path $bundle 'Contents\Resources\SOLAR AMP\web\app.js')) { throw 'PWA app.js must not be shipped in legacy native VST3 resources.' }
           $irCount = @(Get-ChildItem (Join-Path $webRoot 'ir') -Filter '*.wav' -File).Count
           if ($irCount -lt 1) { throw 'Native VST3 IR pack missing.' }
           if (-not (Test-Path (Join-Path $bundle 'Contents\Resources\SOLAR AMP\web\index.html'))) { throw 'Legacy WebView fallback index.html missing.' }
