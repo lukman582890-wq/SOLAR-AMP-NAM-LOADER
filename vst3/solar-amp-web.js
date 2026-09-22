@@ -249,10 +249,13 @@ function manageSavedPresets(){
 function wireModelSelector(selector,values,onChange){
  const box=document.querySelector(selector);if(!box)return ()=>{};
  let i=0;const label=box.querySelector('strong'),buttons=box.querySelectorAll('button');
- function update(){if(label)label.textContent=selector==='#cabSelect'?formatIRName(values[i]):values[i];onChange?.(values[i],i)}
- const set=value=>{const n=values.indexOf(value);if(n>=0){i=n;update()}};
- buttons[0]?.addEventListener('click',()=>{i=(i-1+values.length)%values.length;update()});
- buttons[1]?.addEventListener('click',()=>{i=(i+1)%values.length;update()});update();return set;
+ function update(){if(label)label.textContent=selector==='#cabSelect'?formatIRName(values[i]):values[i]}
+ const select=()=>{update();onChange?.(values[i],i)};
+ const set=value=>{const n=values.indexOf(value);if(n>=0){i=n;select()}};
+ buttons[0]?.addEventListener('click',()=>{i=(i-1+values.length)%values.length;select()});
+ buttons[1]?.addEventListener('click',()=>{i=(i+1)%values.length;select()});
+ update();
+ return set;
 }
 function updateEqGraph(){
  const path=$('eqCurve'),fill=$('eqFill'),svg=document.querySelector('.eq-graph svg');if(!path||!svg)return;
@@ -308,24 +311,31 @@ function sendIRBytes(buffer){
  SOLARCTRL({cabActive:true});
  moduleBypass.cab=false;
 }
+async function loadBundledIR(name){
+ const safe=String(name||'').replace(/[^A-Za-z0-9_.-]/g,'');
+ if(!safe)throw new Error('Invalid built-in IR name');
+ const response=await fetch('./ir/'+encodeURIComponent(safe)+'.wav?native=1',{cache:'no-store'});
+ if(!response.ok)throw new Error('Built-in IR HTTP '+response.status);
+ const buffer=await response.arrayBuffer();
+ irBuffer=buffer;
+ irName=safe+'.wav';
+ sendIRBytes(buffer);
+}
 async function applyCabModel(name){
  selectedCab=name;if(!name)return;
  const nativeName=builtInCabMap[name]||name;
+ const builtIn=Boolean(builtInCabMap[name]||irPackV1.includes(name));
  setText($('cabModel'),formatIRName(nativeName));
- setText($('irStatus'),'CAB • loading native IR…');
+ setText($('irStatus'),builtIn?'CAB • loading bundled IR…':'CAB • loading native IR…');
  try{
-  if(builtInCabMap[name]||irPackV1.includes(name)){
-   const bytes=new TextEncoder().encode(String(nativeName));
-   let s='';for(let i=0;i<bytes.length;i+=0x8000)s+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
-   SAMFUI(104,-1,btoa(s));
+  if(builtIn){
+   await loadBundledIR(nativeName);
   }else if(irFiles.has(name)){
    irBuffer=irFiles.get(name).buffer;
    irName=name;
    sendIRBytes(irBuffer);
   }else{
-   const bytes=new TextEncoder().encode(String(nativeName));
-   let s='';for(let i=0;i<bytes.length;i+=0x8000)s+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
-   SAMFUI(104,-1,btoa(s));
+   await loadBundledIR(nativeName);
   }
   moduleBypass.cab=false;
   SAMFUI(110,3,byte64(true));
