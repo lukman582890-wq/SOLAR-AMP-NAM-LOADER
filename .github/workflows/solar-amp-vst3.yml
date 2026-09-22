@@ -110,7 +110,25 @@ jobs:
           foreach ($needle in @('function toggleModule','function applyCabModel','function applyFxMode','SAMFUI(100','SAMFUI(101','SAMFUI(104','msgTag:112','function SOLARCTRL')) {
             if ($js.IndexOf($needle) -lt 0) { throw "Required WebView feature bridge missing: $needle" }
           }
+          if ($js.IndexOf('SAMFUI(104') -ge 0) { throw 'Legacy native IR path (SAMFUI 104) must not be used by the WebView.' }
           Write-Host 'SOLAR AMP WebView JavaScript syntax/features verified.'
+
+      - name: Audit native bridge and IR assets
+        shell: pwsh
+        run: |
+          $native = Get-Content 'vst3\solar-amp-native.cpp' -Raw
+          if ($native.IndexOf('SendControlMsgFromDelegate') -ge 0) { throw 'Legacy IGraphics control callback must not exist in native WebView build.' }
+          $irDir = Resolve-Path 'ir'
+          $files = @(Get-ChildItem $irDir -Filter '*.wav' -File)
+          if ($files.Count -lt 20) { throw "Expected at least 20 bundled IR WAV files, found $($files.Count)." }
+          foreach ($file in $files) {
+            $bytes = [IO.File]::ReadAllBytes($file.FullName)
+            if ($bytes.Length -lt 44) { throw "IR too small: $($file.Name)" }
+            if ([Text.Encoding]::ASCII.GetString($bytes,0,4) -ne 'RIFF' -or [Text.Encoding]::ASCII.GetString($bytes,8,4) -ne 'WAVE') {
+              throw "Invalid WAV header: $($file.Name)"
+            }
+          }
+          Write-Host "Native bridge and $($files.Count) IR WAV assets verified."
 
       - name: Get iPlug2 SDK
         shell: bash
