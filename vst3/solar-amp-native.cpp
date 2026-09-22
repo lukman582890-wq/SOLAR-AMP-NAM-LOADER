@@ -1027,7 +1027,8 @@ std::string NeuralAmpModeler::_StageModel(const WDL_String& modelPath)
     // Never destroy a previously accepted staged model because a later load
     // attempt failed. The last successfully staged object remains available
     // for the audio thread to commit.
-    SendControlMsgFromDelegate(kCtrlTagModelFileBrowser, kMsgTagLoadFailed, 0, nullptr);
+    // Native SOLAR AMP uses a WebView status bridge; do not call the legacy
+    // NAM IGraphics control-message path because this build has NO_IGRAPHICS.
     std::cerr << "Failed to read DSP module" << std::endl;
     std::cerr << e.what() << std::endl;
     return e.what();
@@ -1056,7 +1057,8 @@ dsp::wav::LoadReturnCode NeuralAmpModeler::_StageIR(const WDL_String& irPath)
     std::cerr << "Caught unhandled exception while attempting to load IR:" << std::endl;
     std::cerr << e.what() << std::endl;
     // Preserve any previously accepted staged IR on failure.
-    SendControlMsgFromDelegate(kCtrlTagIRFileBrowser, kMsgTagLoadFailed, 0, nullptr);
+    // Native SOLAR AMP uses a WebView status bridge; do not call the legacy
+    // NAM IGraphics control-message path because this build has NO_IGRAPHICS.
   }
 
   return wavState;
