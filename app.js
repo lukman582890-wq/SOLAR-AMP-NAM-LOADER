@@ -278,13 +278,18 @@ async function start(){
   refreshAllBypass();refreshStatusIndicators();return;
  }
  try{
-  ctx=new AudioContext({latencyHint:'interactive'});
+  // Low-latency live-input mode. A numeric hint lets Chromium target a
+  // smaller render quantum than the generic "interactive" profile.
+  ctx=new AudioContext({latencyHint:0.003});
   if(ctx.state==='suspended')await ctx.resume();
   stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:1}});
 
   const s=ctx.createMediaStreamSource(stream);
   inputAnalyser=ctx.createAnalyser();outputAnalyser=ctx.createAnalyser();inputAnalyser.fftSize=outputAnalyser.fftSize=2048;
-  const gate=ctx.createDynamicsCompressor();gate.threshold.value=-42;gate.ratio.value=12;gate.attack.value=.003;gate.release.value=.12;
+  // Do NOT put DynamicsCompressorNode in the live guitar path: Web Audio
+  // specifies a fixed ~6 ms look-ahead for this node. It was previously used
+  // as a "gate" and added avoidable monitoring latency.
+  const gate=ctx.createGain();gate.gain.value=1;
   nodes.odDrive=ctx.createWaveShaper();nodes.odDrive.oversample='4x';
   nodes.odTone=ctx.createBiquadFilter();nodes.odTone.type='lowpass';nodes.odTone.frequency.value=3950;
   nodes.odLevel=ctx.createGain();nodes.odLevel.gain.value=.72;
@@ -314,6 +319,7 @@ async function start(){
   const dry=ctx.createGain();dry.gain.value=1;master=ctx.createGain();
 
   s.connect(inputAnalyser);
+  // Zero-lookahead input path for live playing.
   s.connect(gate).connect(nodes.odDrive).connect(nodes.odTone).connect(nodes.odLevel).connect(nodes.ampDrive);
   await initNamEngine();
   nodes.ampDrive.connect(namNode).connect(nodes.namWet).connect(nodes.ampTone);
@@ -334,7 +340,12 @@ async function start(){
   namMode=false;namSourceActive=false;
   if(namModelJson&&!namModelLoaded){try{await loadNamModel(namModelJson)}catch{}}
   refreshAllBypass();refreshNamBypass();
-  running=true;$('stopAudio')?.removeAttribute('hidden');refreshStatusIndicators();setText($('engine'),'WEB AUDIO');setText($('rate'),ctx.sampleRate+' Hz');setText($('latency'),((ctx.baseLatency||0)*1000).toFixed(1)+' ms');$('start').classList.add('on');$('start').textContent='👍';tick();
+  running=true;$('stopAudio')?.removeAttribute('hidden');refreshStatusIndicators();setText($('engine'),'WEB AUDIO LOW-LATENCY');setText($('rate'),ctx.sampleRate+' Hz');
+  const baseMs=(ctx.baseLatency||0)*1000;
+  const outputMs=(ctx.outputLatency||0)*1000;
+  setText($('latency'),(baseMs+outputMs).toFixed(1)+' ms');
+  $('latency').title='Web Audio base '+baseMs.toFixed(1)+' ms + output '+outputMs.toFixed(1)+' ms (NAM/model latency is additional)';
+  $('start').classList.add('on');$('start').textContent='👍';tick();
  }catch(err){
   setText($('engine'),'AUDIO ERROR');setText($('latency'),err?.name||'Permission denied');
   try{ctx?.close()}catch{}
