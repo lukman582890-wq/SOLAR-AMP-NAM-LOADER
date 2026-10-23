@@ -107,7 +107,7 @@ jobs:
           node --check 'vst3\\solar-amp-web.js'
           if ($LASTEXITCODE -ne 0) { throw 'SOLAR AMP WebView JavaScript syntax check failed.' }
           $js = Get-Content 'vst3\\solar-amp-web.js' -Raw
-          foreach ($needle in @('function toggleModule','function applyCabModel','function applyFxMode','SAMFUI(100','SAMFUI(101','SAMFUI(104','msgTag:112','function SOLARCTRL')) {
+          foreach ($needle in @('function toggleModule','function applyCabModel','function applyFxMode','SAMFUI(100','SAMFUI(101','msgTag:112','function SOLARCTRL')) {
             if ($js.IndexOf($needle) -lt 0) { throw "Required WebView feature bridge missing: $needle" }
           }
           if ($js.IndexOf('SAMFUI(104') -ge 0) { throw 'Legacy native IR path (SAMFUI 104) must not be used by the WebView.' }
