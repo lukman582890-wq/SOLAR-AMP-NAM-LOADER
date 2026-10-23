@@ -324,3 +324,19 @@ main{width:100%;max-width:1080px;margin-inline:auto}
 @media(max-width:650px){.mode-status{align-items:flex-start}.status-pills{overflow-x:auto;padding-bottom:2px}.status-pill{min-width:88px}}
 
 .source-switch{height:30px;min-width:126px;padding:0 12px;border:1px solid #52606a;border-radius:7px;background:linear-gradient(180deg,#1b2328,#101519);color:#bcc7cd;font:700 9px monospace;letter-spacing:1.2px;cursor:pointer;transition:.18s ease;flex:0 0 auto}.source-switch:hover:not(:disabled){border-color:#6e858f;color:#edf4f7;box-shadow:0 0 10px rgba(120,150,160,.10)}.source-switch:disabled{opacity:.38;cursor:not-allowed}.source-switch.nam-selected{border-color:#d0923c;background:#24190b;color:#ffc15a;box-shadow:0 0 11px rgba(229,161,47,.14),inset 0 1px #fff2}@media(max-width:650px){.source-switch{min-width:112px}}
+
+
+/* SOLAR AMP VST3/WebView2: keep all generated control banks above decorative face overlays. */
+.amp-plate .knobs,
+.rig .knobs,
+.eq-body .knobs,
+.fx-body .knobs{
+  display:grid!important;
+  visibility:visible!important;
+  opacity:1!important;
+  position:relative;
+  z-index:3;
+  min-height:96px;
+}
+.amp-plate:before,
+.amp-plate:after{z-index:0;pointer-events:none}
