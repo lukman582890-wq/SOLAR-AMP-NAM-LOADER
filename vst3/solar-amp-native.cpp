@@ -274,7 +274,7 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
     static const double notchHz[20] = {3100,3400,3000,3600,3300,3500,2900,3200,3000,3500,3000,3300,2900,3400,3000,3500,2900,3300,3000,3400};
     const double hpA = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * hpHz[cab] / sampleRate);
     const double lpA = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * lpHz[cab] / sampleRate);
-    const double nA = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * notchHz[cab] / sampleRate);
+    (void)notchHz; // reserved for future mic-notch profiles
     for (size_t s = 0; s < numFrames; ++s)
     {
       const float x = mOutputPointers[0][s];
@@ -282,9 +282,8 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
       const float hp = x - mCabLowState;
       mCabHighState += static_cast<float>(lpA) * (hp - mCabHighState);
       const float band = hp - mCabHighState;
-      mCabLowState += static_cast<float>(nA * 0.02) * (band - mCabLowState);
       const float micTilt = static_cast<float>(0.92 + (cab % 5) * 0.018);
-      mOutputPointers[0][s] = (mCabHighState * micTilt) + (hp - mCabHighState) * 0.18f;
+      mOutputPointers[0][s] = (mCabHighState * micTilt) + band * 0.18f;
     }
   }
 
