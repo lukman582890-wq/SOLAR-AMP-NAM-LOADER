@@ -325,10 +325,15 @@ async function applyCabModel(name){
  selectedCab=name;if(!name)return;
  const nativeName=builtInCabMap[name]||name;
  const builtIn=Boolean(builtInCabMap[name]||irPackV1.includes(name));
+ const cabIndex=Math.max(0,irPackV1.indexOf(nativeName));
  setText($('cabModel'),formatIRName(nativeName));
- setText($('irStatus'),builtIn?'CAB • loading bundled IR…':'CAB • loading native IR…');
+ setText($('irStatus'),builtIn?'CAB • native profile':'CAB • loading native IR…');
  try{
-  if(builtIn){
+  // Native VST3: the repository intentionally does not require a binary IR
+  // pack. Built-in cabinets are modeled natively and are selected by index.
+  if(builtIn && typeof IPlugSendMsg==='function'){
+   SOLARCTRL({cabModel:cabIndex,cabActive:true});
+  }else if(builtIn){
    await loadBundledIR(nativeName);
   }else if(irFiles.has(name)){
    irBuffer=irFiles.get(name).buffer;
@@ -339,7 +344,7 @@ async function applyCabModel(name){
   }
   moduleBypass.cab=false;
   SAMFUI(110,3,byte64(true));
-  SOLARCTRL({cabActive:true});
+  SOLARCTRL({cabModel:cabIndex,cabActive:true});
   refreshCab();
  }catch(e){setText($('irStatus'),'CAB IR ERROR • '+(e?.message||e))}
 }
