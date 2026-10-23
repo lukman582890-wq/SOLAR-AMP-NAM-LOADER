@@ -389,10 +389,48 @@ function renderIRLibrary(){
   box.appendChild(b);
  });
 }
+async function normalizeIRToWav(file){
+ const raw=await file.arrayBuffer();
+ if(/\.wav$/i.test(String(file.name||'')))return raw;
+ const AC=window.AudioContext||window.webkitAudioContext;
+ if(!AC)throw new Error('Web Audio decoder unavailable for '+file.name);
+ const ac=new AC();
+ try{
+  const decoded=await ac.decodeAudioData(raw.slice(0));
+  const frames=decoded.length;
+  const sr=decoded.sampleRate;
+  const channels=Math.min(decoded.numberOfChannels,2);
+  const bytes=new ArrayBuffer(44+frames*4);
+  const view=new DataView(bytes);
+  const text4=(o,s)=>{for(let i=0;i<4;i++)view.setUint8(o+i,s.charCodeAt(i))};
+  text4(0,'RIFF');view.setUint32(4,36+frames*4,true);text4(8,'WAVE');
+  text4(12,'fmt ');view.setUint32(16,16,true);view.setUint16(20,3,true);
+  view.setUint16(22,1,true);view.setUint32(24,sr,true);view.setUint32(28,sr*4,true);
+  view.setUint16(32,4,true);view.setUint16(34,32,true);text4(36,'data');view.setUint32(40,frames*4,true);
+  const data=decoded.getChannelData(0);
+  const data2=channels>1?decoded.getChannelData(1):null;
+  for(let i=0;i<frames;i++){
+   const sample=data2?(data[i]+data2[i])*0.5:data[i];
+   view.setFloat32(44+i*4,Math.max(-1,Math.min(1,sample)),true);
+  }
+  return bytes;
+ }finally{try{await ac.close()}catch{}}
+}
 async function loadIRFile(file){
  if(!file)return;
- if(!/\\.wav$/i.test(String(file.name||''))){setText($('irStatus'),'IR LOAD ERROR • Native VST3 supports WAV IR only');return}
- try{irBuffer=await file.arrayBuffer();irName=file.name;selectedCab=file.name;irFiles.set(file.name,{buffer:irBuffer});renderIRLibrary();sendIRBytes(irBuffer);setText($('cabModel'),formatIRName(file.name));setText($('irStatus'),'NATIVE DSP • loading '+file.name);refreshCab()}catch(e){setText($('irStatus'),'IR LOAD ERROR • '+(e?.message||e))}}
+ if(!/\.(wav|aiff?|flac)$/i.test(String(file.name||''))){setText($('irStatus'),'IR LOAD ERROR • Unsupported audio file');return}
+ try{
+  setText($('irStatus'),'IR • decoding '+file.name+'…');
+  irBuffer=await normalizeIRToWav(file);
+  irName=file.name;
+  selectedCab=file.name;
+  irFiles.set(file.name,{buffer:irBuffer});
+  renderIRLibrary();
+  sendIRBytes(irBuffer);
+  setText($('cabModel'),formatIRName(file.name));
+  setText($('irStatus'),'NATIVE DSP • loading '+file.name);
+  refreshCab();
+ }catch(e){setText($('irStatus'),'IR LOAD ERROR • '+(e?.message||e))}}
 function saveIRLocal(name,buffer){try{const data=buffer.getChannelData(0);const arr=new Float32Array(data);localStorage.setItem('solarLastIRName',name);localStorage.setItem('solarLastIR',btoa(String.fromCharCode(...new Uint8Array(arr.buffer))));}catch{}}
 
 function applyFxModel(name){
