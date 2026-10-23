@@ -268,6 +268,8 @@ public:
   std::atomic<float> mFXDelayPct{28.0f};
   std::atomic<float> mFXReverbPct{22.0f};
   std::atomic<int> mAmpModelNative{0};
+  // Built-in CAB profile index (0..19); custom WAV IRs still use mIR.
+  std::atomic<int> mCabModelNative{0};
   std::vector<float> mDelayBuffer;
   std::vector<float> mReverbBuffer;
   size_t mDelayWritePos = 0;
@@ -278,6 +280,8 @@ public:
   float mEQLowState = 0.0f;
   float mEQHighState = 0.0f;
   float mAmpState = 0.0f;
+  float mCabLowState = 0.0f;
+  float mCabHighState = 0.0f;
   float mPhaserState1 = 0.0f;
   float mPhaserState2 = 0.0f;
   double mChorusPhase = 0.0;
