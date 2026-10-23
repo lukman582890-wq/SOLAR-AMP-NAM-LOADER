@@ -264,6 +264,30 @@ void NeuralAmpModeler::ProcessBlock(iplug::sample** inputs, iplug::sample** outp
   if (audioIR != nullptr && mCabActive.load())
     irPointers = audioIR->Process(gateGainOutput, numChannelsInternal, numFrames);
 
+  // Built-in CAB profiles are always available even when no WAV pack is present.
+  // A custom WAV IR, when loaded, takes precedence over this profile stage.
+  if (mCabActive.load() && audioIR == nullptr)
+  {
+    const int cab = std::clamp(mCabModelNative.load(), 0, 19);
+    static const double hpHz[20] = {65,65,70,70,72,72,70,70,68,68,65,65,70,70,72,72,68,68,65,65};
+    static const double lpHz[20] = {6800,7600,7200,8200,7000,7900,6800,7600,7200,8200,6500,7400,7000,7800,6800,7600,7200,8200,6500,7400};
+    static const double notchHz[20] = {3100,3400,3000,3600,3300,3500,2900,3200,3000,3500,3000,3300,2900,3400,3000,3500,2900,3300,3000,3400};
+    const double hpA = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * hpHz[cab] / sampleRate);
+    const double lpA = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * lpHz[cab] / sampleRate);
+    const double nA = 1.0 - std::exp(-2.0 * 3.14159265358979323846 * notchHz[cab] / sampleRate);
+    for (size_t s = 0; s < numFrames; ++s)
+    {
+      const float x = mOutputPointers[0][s];
+      mCabLowState += static_cast<float>(hpA) * (x - mCabLowState);
+      const float hp = x - mCabLowState;
+      mCabHighState += static_cast<float>(lpA) * (hp - mCabHighState);
+      const float band = hp - mCabHighState;
+      mCabLowState += static_cast<float>(nA * 0.02) * (band - mCabLowState);
+      const float micTilt = static_cast<float>(0.92 + (cab % 5) * 0.018);
+      mOutputPointers[0][s] = (mCabHighState * micTilt) + (hp - mCabHighState) * 0.18f;
+    }
+  }
+
   // And the HPF for DC offset (Issue 271)
   const double highPassCutoffFreq = kDCBlockerFrequency;
   // const double lowPassCutoffFreq = 20000.0;
@@ -397,6 +421,8 @@ void NeuralAmpModeler::OnReset()
   mEQLowState = 0.0f;
   mEQHighState = 0.0f;
   mAmpState = 0.0f;
+  mCabLowState = 0.0f;
+  mCabHighState = 0.0f;
   mPhaserState1 = 0.0f;
   mPhaserState2 = 0.0f;
   mChorusPhase = 0.0;
@@ -749,6 +775,7 @@ bool NeuralAmpModeler::OnMessage(int msgTag, int ctrlTag, int dataSize, const vo
         if (j.contains("cabActive") && j["cabActive"].is_boolean()) mCabActive.store(j["cabActive"].get<bool>());
         if (j.contains("fxActive") && j["fxActive"].is_boolean()) mFXActive.store(j["fxActive"].get<bool>());
         if (j.contains("fxMode") && j["fxMode"].is_number_integer()) mFXModeNative.store(std::clamp(j["fxMode"].get<int>(), 0, 4));
+        if (j.contains("cabModel") && j["cabModel"].is_number_integer()) mCabModelNative.store(std::clamp(j["cabModel"].get<int>(), 0, 19));
         if (j.contains("ampBypass") && j["ampBypass"].is_boolean()) mNativeAmpBypass.store(j["ampBypass"].get<bool>());
         if (j.contains("namActive") && j["namActive"].is_boolean()) mNamActive.store(j["namActive"].get<bool>());
         return true;
@@ -901,9 +928,11 @@ void NeuralAmpModeler::_DeallocateIOPointers()
 void NeuralAmpModeler::_FallbackDSP(iplug::sample** inputs, iplug::sample** outputs, const size_t numChannels,
                                     const size_t numFrames)
 {
+  // True transparent stage bypass: copy the stage input, not the original
+  // pre-OD buffer. This is critical for AMP bypass to leave OD/CAB/EQ/FX intact.
   for (auto c = 0; c < numChannels; c++)
     for (auto s = 0; s < numFrames; s++)
-      mOutputArray[c][s] = mInputArray[c][s];
+      outputs[c][s] = inputs[c][s];
 }
 
 void NeuralAmpModeler::_ResetModelAndIR(const double sampleRate, const int maxBlockSize)
