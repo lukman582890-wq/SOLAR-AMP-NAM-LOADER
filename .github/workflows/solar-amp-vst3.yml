@@ -118,17 +118,10 @@ jobs:
         run: |
           $native = Get-Content 'vst3\solar-amp-native.cpp' -Raw
           if ($native.IndexOf('SendControlMsgFromDelegate') -ge 0) { throw 'Legacy IGraphics control callback must not exist in native WebView build.' }
-          $irDir = Resolve-Path 'ir'
-          $files = @(Get-ChildItem $irDir -Filter '*.wav' -File)
-          if ($files.Count -lt 20) { throw "Expected at least 20 bundled IR WAV files, found $($files.Count)." }
-          foreach ($file in $files) {
-            $bytes = [IO.File]::ReadAllBytes($file.FullName)
-            if ($bytes.Length -lt 44) { throw "IR too small: $($file.Name)" }
-            if ([Text.Encoding]::ASCII.GetString($bytes,0,4) -ne 'RIFF' -or [Text.Encoding]::ASCII.GetString($bytes,8,4) -ne 'WAVE') {
-              throw "Invalid WAV header: $($file.Name)"
-            }
+          foreach ($needle in @('mCabModelNative','mODActive','mFXModeNative','case 112','case 100','case 101')) {
+            if ($native.IndexOf($needle) -lt 0) { throw "Required native DSP/control implementation missing: $needle" }
           }
-          Write-Host "Native bridge and $($files.Count) IR WAV assets verified."
+          Write-Host 'Native bridge and native CAB/OD/EQ/FX control implementation verified.'
 
       - name: Get iPlug2 SDK
         shell: bash
@@ -173,14 +166,10 @@ jobs:
           New-Item -ItemType Directory -Force $legacyResources | Out-Null
           Copy-Item 'nam-vst3-source\NeuralAmpModeler\Resources\web\*' $resources -Recurse -Force
           Copy-Item 'nam-vst3-source\NeuralAmpModeler\Resources\web\*' $legacyResources -Recurse -Force
-          # Bundle the IR pack beside index.html because the WebView uses ./ir/*.wav.
-          $irDest = Join-Path $resources 'ir'
-          New-Item -ItemType Directory -Force $irDest | Out-Null
-          Copy-Item 'ir\*.wav' $irDest -Force
           Write-Host "VST3 binary: $($bin.FullName)"
           Write-Host "Web UI: $resources"
-          Write-Host "IR pack: $irDest"
           Write-Host "Legacy Web UI fallback: $legacyResources"
+          Write-Host "Built-in CABs are native profiles; custom WAV IRs are loaded through the WebView bridge."
 
       - name: Validate
         shell: pwsh
