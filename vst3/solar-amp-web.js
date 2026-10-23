@@ -331,16 +331,14 @@ async function applyCabModel(name){
  try{
   // Native VST3: the repository intentionally does not require a binary IR
   // pack. Built-in cabinets are modeled natively and are selected by index.
-  if(builtIn && typeof IPlugSendMsg==='function'){
-   // A built-in CAB profile must replace any previously loaded custom IR.
-   // Otherwise the native DSP correctly prioritizes the still-live custom IR,
-   // making the CAB selector appear non-functional.
+  if(builtIn){
+   // Built-in cabinets are native DSP profiles, so they must not depend on
+   // a bundled WAV asset or on IPlugSendMsg already being installed.
+   // _solarSend() queues these messages until the bridge becomes available.
    SAMFUI(1,-1,byte64(0)); // kMsgTagClearIR
    SOLARCTRL({cabModel:cabIndex,cabActive:true});
    irBuffer=null;
    irName='';
-  }else if(builtIn){
-   await loadBundledIR(nativeName);
   }else if(irFiles.has(name)){
    irBuffer=irFiles.get(name).buffer;
    irName=name;
