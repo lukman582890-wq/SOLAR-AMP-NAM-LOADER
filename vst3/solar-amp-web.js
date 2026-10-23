@@ -395,7 +395,18 @@ async function loadIRFile(file){
  try{irBuffer=await file.arrayBuffer();irName=file.name;selectedCab=file.name;irFiles.set(file.name,{buffer:irBuffer});renderIRLibrary();sendIRBytes(irBuffer);setText($('cabModel'),formatIRName(file.name));setText($('irStatus'),'NATIVE DSP • loading '+file.name);refreshCab()}catch(e){setText($('irStatus'),'IR LOAD ERROR • '+(e?.message||e))}}
 function saveIRLocal(name,buffer){try{const data=buffer.getChannelData(0);const arr=new Float32Array(data);localStorage.setItem('solarLastIRName',name);localStorage.setItem('solarLastIR',btoa(String.fromCharCode(...new Uint8Array(arr.buffer))));}catch{}}
 
-function applyFxModel(name){selectedFx=name;const p={'Hall Reverb':[42,30],'Plate Reverb':[18,38],'Room Reverb':[10,20],'Studio Hall':[32,34]}[name]||[42,30];state.delay=p[0];state.reverb=p[1];refreshFx()}
+function applyFxModel(name){
+ selectedFx=name;
+ const p={'Hall Reverb':[42,30],'Plate Reverb':[18,38],'Room Reverb':[10,20],'Studio Hall':[32,34]}[name]||[42,30];
+ state.delay=p[0];
+ state.reverb=p[1];
+ // These selector entries are reverb presets. Selecting one must actually
+ // route the native FX engine to the REVERB algorithm; previously the UI
+ // changed the preset name/mix while leaving DELAY mode active.
+ selectedFxMode='REVERB';
+ document.querySelectorAll('.fx-modes button').forEach(x=>x.classList.toggle('selected',x.textContent.trim()===selectedFxMode));
+ refreshFx();
+}
 function applyFxMode(mode){selectedFxMode=mode;document.querySelectorAll('.fx-modes button').forEach(x=>x.classList.toggle('selected',x.textContent.trim()===mode));refreshFx()}
 function wireUI(){$('start')?.addEventListener('click',()=>{if(!running)start();else toggleModule('amp')});$('stopAudio')?.addEventListener('click',stop);$('presetPrev')?.addEventListener('click',()=>cyclePreset(-1));$('presetNext')?.addEventListener('click',()=>cyclePreset(1));$('savePreset')?.addEventListener('click',savePreset);$('presetMenu')?.addEventListener('click',manageSavedPresets);document.querySelectorAll('.chain-node[data-target]').forEach(n=>n.addEventListener('click',()=>$(n.dataset.target)?.scrollIntoView({behavior:'smooth',block:'center'})));setAmp=wireModelSelector('#ampSelect',['British 800','American Clean','Modern 5150'],applyAmpModel);setOd=wireModelSelector('#odSelect',['Tube Screamer','Tight OD','Off'],applyOdModel);setEq=wireModelSelector('#eqSelect',['Default','V-Curve','Mid Focus'],applyEqModel);wireEqGraph();setCab=wireModelSelector('#cabSelect',irPackV1,applyCabModel);document.querySelector('#irInput')?.addEventListener('change',async e=>{for(const f of [...(e.target.files||[])])await loadIRFile(f);e.target.value=''});renderIRLibrary();setFx=wireModelSelector('#fxSelect',['Hall Reverb','Plate Reverb','Room Reverb','Studio Hall'],applyFxModel);setFxMode=applyFxMode;document.querySelectorAll('.fx-modes button').forEach(b=>b.addEventListener('click',()=>applyFxMode(b.textContent.trim())));document.querySelectorAll('.module-bypass[data-module]:not(#start)').forEach(icon=>icon.addEventListener('click',()=>toggleModule(icon.dataset.module)));$('sourceSwitch')?.addEventListener('click',()=>toggleAmpSource());$('nam')?.addEventListener('change',async e=>{
  const f=e.target.files?.[0];if(!f)return;
